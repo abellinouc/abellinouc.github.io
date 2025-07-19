@@ -1,0 +1,91 @@
+.time-modal {
+  position: absolute;
+  top: 4rem;
+  left: 1rem;
+  z-index: 50;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  width: 21.5rem;
+  max-width: 100vw;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Header */
+.time-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.time-modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: color 0.3s;
+  padding: 0;
+}
+
+.close-btn:hover {
+  color: #f87171;
+}
+
+/* Calendario centrado */
+.calendar {
+  display: flex;
+  justify-content: center;
+}
+
+/* Agrupación de botones principales (Stop, Realtime) */
+.time-control-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Agrupación de velocidades mayores */
+.speed-control-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Estilos comunes para botones */
+.speed-btn {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #1f2937;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background-color 0.3s, border-color 0.3s;
+  font-size: 0.875rem;
+  min-width: 84px;
+  text-align: center;
+}
+
+.speed-btn:hover {
+  background-color: #374151;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.speed-btn.selected {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+}
