@@ -4,6 +4,7 @@ import LocationModal from "../components/LocationModal";
 import TopBar from "../components/TopBar";
 import EngineButtons from "../components/EngineButtons";
 import TimeModal from "../components/TimeModal";
+import ConnectIframe from "../components/ConnectIframe";
 
 interface CityData {
   lat: number;
@@ -73,6 +74,8 @@ export default function Home() {
         onLocationClick={() => setShowLocationModal(true)}
         onTimeClick={() => setShowTimeModal(true)}
       />
+
+      <ConnectIframe />
 
       <StellariumCanvas ref={stelRef} />
 

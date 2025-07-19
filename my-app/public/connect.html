@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect</title>
+  </head>
+  <body>
+    <script src="https://app.protobject.com/framework/p.js"></script>
+    <script src="config.js"></script>
+
+    <script>
+      let expanded = false;
+
+      const observer = new MutationObserver((mutations, obs) => {
+        const connectBtn = document.getElementById("ProtobjectPlusButton");
+        if (connectBtn) {
+          connectBtn.addEventListener("click", () => {
+            expanded = true;
+            parent.postMessage({ type: "expandIframe" }, "*");
+
+            // Esperar un poco para que la lista aparezca
+            setTimeout(() => {
+              const dropdown = document.querySelector(".dropdown-menu");
+              if (dropdown) {
+                const option = dropdown.querySelector("div");
+                if (option) {
+                  option.click(); // Hace clic en "Telescope"
+                }
+              }
+            }, 300); // Ajusta el tiempo si es necesario
+          });
+
+          obs.disconnect(); // Ya no necesitamos seguir observando
+        }
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(4px);
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #ProtobjectPlusButton {
+        all: unset !important;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 14px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        background-color: #2563eb !important;
+        color: white !important;
+        border-radius: 50% !important;
+        cursor: pointer !important;
+      }
+    </style>
+  </body>
+</html>

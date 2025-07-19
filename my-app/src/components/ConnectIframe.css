@@ -1,0 +1,22 @@
+.connect-iframe {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.75rem;
+  height: 30px;
+  width: 30px;
+  border: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  border-radius: 50%;
+  overflow-y: hidden;
+  overflow-x: hidden;
+}
+
+/* Estilo expandido para mostrar el QR */
+.connect-iframe.expanded {
+  width: 250px;
+  height: 350px;
+  top: 2.5rem; /* Justo debajo de la topbar */
+  right: 1rem;
+  border-radius: 8px;
+}
