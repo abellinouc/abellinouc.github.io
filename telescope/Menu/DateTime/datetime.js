@@ -132,6 +132,28 @@ function showTimeSelector() {
     inline: true,
     onOpen: () => (isUserTouchingCalendar = true),
     onClose: () => (isUserTouchingCalendar = false),
+    onReady: function() {
+      // Agregar listeners a los inputs de tiempo cuando flatpickr esté listo
+      const timeInputs = this.calendarContainer.querySelectorAll('.numInput');
+      
+      timeInputs.forEach(input => {
+        input.addEventListener('focus', () => {
+          isUserTouchingCalendar = true;
+        });
+        
+        input.addEventListener('blur', () => {
+          // Pequeño delay para evitar que se reactive inmediatamente
+          setTimeout(() => {
+            isUserTouchingCalendar = false;
+          }, 500);
+        });
+        
+        input.addEventListener('input', () => {
+          isUserTouchingCalendar = true;
+          lastManualChange = Date.now();
+        });
+      });
+    },
 
     onValueUpdate: function (selectedDates) {
       // console.log("Called onValueUpdate function");
