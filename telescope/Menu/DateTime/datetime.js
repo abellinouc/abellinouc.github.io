@@ -3,7 +3,7 @@ function displayDateTime(e) {
 
   let datetimeSection = document.getElementById('datetimeSection')
 
-  let localTime = new Date();
+  // let localTime = new Date();
 
   if (!datetimeSection) {
     let section = `
@@ -42,6 +42,14 @@ function displayDateTime(e) {
   }, 100);
 }
 
+function syncTime( { engineUTC: newTime } ) {
+
+  if (!newTime || typeof newTime !== "number") return;
+
+  engineUTC = newTime;
+
+}
+
 function applyCurrentDate() {
   const dateTZ = getISOWithTZ(new Date());
   updateDate(dateTZ);
@@ -62,7 +70,7 @@ function updateDate(date) {
 
   Protobject.Core.send({ msg:"updateDate", values: { date: mjd } }).to("index.html");
   // change local time
-  engine.core.observer.utc = mjd;
+  // engine.core.observer.utc = mjd;
 }
 
 function createInterval() {
