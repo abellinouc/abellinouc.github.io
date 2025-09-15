@@ -90,7 +90,7 @@
             <div class="image-button equatorial-image"></div>
             <p>Equatorial</p>
           </button>
-          <button name="dss" class="image-button stel-button">
+          <button name="nebulae" class="image-button stel-button">
             <div class="image-button nebulae-image"></div>
             <p>Nebulosa</p>
           </button>
@@ -172,7 +172,7 @@
     stellariumOptionButtons.forEach( btn => {
       btn.onclick = () => {
         const info = BUTTONS[btn.name];
-        Protobject.Core.send({msg:"stellariumOption", values: { path: info.path, attr: info.attr } }).to("index.html");
+        Protobject.Core.send({ optionInfo: info }).to("index.html");
         btn.classList.toggle('active');
       }
     })
@@ -299,7 +299,7 @@
         this.oldX += (adjustedYaw - this.oldX) * sensitivity;
         this.oldY += (pitch - this.oldY) * sensitivity;
 
-        Protobject.Core.send({ msg:"updateView", values: { h: this.oldX, v: this.oldY } }).to("index.html");
+        Protobject.Core.send({ h: this.oldX, v: this.oldY }).to("index.html");
       },
     };
 
