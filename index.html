@@ -2,81 +2,316 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Stellarium Web Engine</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="stellarium.styles.css" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <title>AstroVis Minimalista</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #stel-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      #zoom-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 16px;
+        z-index: 1000;
+      }
+    </style>
   </head>
-
   <body>
-    <script src="https://app.protobject.com/framework/p.js"></script>
-    <script src="config.js"></script>
+    <canvas id="stel-canvas"></canvas>
+    <div id="zoom-indicator">Lente: 1 (10mm)</div>
+
+    <!-- Stellarium Web Engine -->
     <script src="stellarium-web-engine.js"></script>
-
-    <div id="stel">
-      <canvas id="stel-canvas"></canvas>
-      <div id="info-card"></div>
-      <!-- <div id="pollution-overlay"></div> -->
-    </div>
-
-    <div id="modal-container"></div>
-
-    <!-- <div id="finder-overlay"></div> -->
-    <div id="eyepiece-overlay"></div>
 
     <script>
       let engine;
-      let bortle;
+      let currentZoomLevel = 1;
+
+      // Configuración de niveles de zoom fijos (Field of View en radianes)
+      // Simulando lentes de telescopio: 10mm, 20mm, 32mm, 40mm
+      const ZOOM_LEVELS = {
+        1: { fov: 1.047, label: "10mm (60°)" }, // ~60 grados - vista amplia
+        2: { fov: 0.524, label: "20mm (30°)" }, // ~30 grados - vista media
+        3: { fov: 0.175, label: "32mm (10°)" }, // ~10 grados - zoom alto
+        4: { fov: 0.0349, label: "40mm (2°)" }, // ~2 grados - zoom máximo
+      };
+
+      // Variables para orientación
+      let deviceAlpha = 0;
+      let deviceBeta = 0;
+      let deviceGamma = 0;
+      let permissionGranted = false;
+
+      // ============================================================
+      // INICIALIZACIÓN DE STELLARIUM WEB ENGINE
+      // ============================================================
+      StelWebEngine({
+        wasmFile: "stellarium-web-engine.wasm",
+        canvas: document.getElementById("stel-canvas"),
+        async onReady(stel) {
+          engine = stel;
+          const core = stel.core;
+
+          console.log("Stellarium Web Engine inicializado");
+
+          // Configuración minimalista básica
+          core.observer.utc = Date.now() / 86400000 + 2440587.5; // Julian Date
+
+          // Ubicación por defecto (Santiago, Chile) - puedes cambiarla
+          core.observer.latitude = -33.4489 * (Math.PI / 180);
+          core.observer.longitude = -70.6693 * (Math.PI / 180);
+          core.observer.elevation = 570;
+
+          // Aplicar zoom inicial
+          applyZoom(currentZoomLevel);
+
+          // Configuración visual para exploración
+          //core.atmosphere.visible = false;
+          //core.landscapes.visible = false;
+          core.stars.hints_visible = true; // Mostrar nombres de estrellas
+          //core.planets.hints_visible = true; // Mostrar nombres de planetas
+          core.constellations.lines_visible = true;
+          core.constellations.images_visible = true;
+          core.constellations.labels_visible = true; // Mostrar nombres de constelaciones
+          //core.cardinals.visible = false;
+          //core.milkyway.visible = true;
+          //core.star_relative_scale = 1.0;
+          //core.stars.label_amount = 3.0; // Mostrar más nombres de estrellas
+          //core.dso.hints_visible = true; // Mostrar objetos de espacio profundo
+          //core.minor_planets.hints_visible = true; // Mostrar asteroides/cometas
+
+          const baseUrl = "https://vtdata-telescope.alessiobellino.com/";
+
+          // Cargar catálogos de estrellas (minimal, base y extended para zoom alto)
+          try {
+            await Promise.all([
+              // Catálogo mínimo (estrellas más brillantes)
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars",
+                key: "minimal",
+              }),
+              // Catálogo base (estrellas medias)
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars",
+                key: "base",
+              }),
+              // Catálogo extendido (muchas más estrellas para zoom alto)
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars",
+                key: "extended",
+              }),
+              // Planetas del sistema solar
+              ...[
+                "moon",
+                "sun",
+                "jupiter",
+                "mercury",
+                "venus",
+                "mars",
+                "saturn",
+                "uranus",
+                "neptune",
+                "io",
+                "europa",
+                "ganymede",
+                "callisto",
+              ].map((planet) =>
+                core.planets.addDataSource({
+                  url: baseUrl + `surveys/sso/${planet}/v1`,
+                  key: planet,
+                })
+              ),
+              // Catálogo DSO (Deep Sky Objects - galaxias, nebulosas, cúmulos)
+              core.dso.addDataSource({
+                url: baseUrl + "surveys/dss2/v1",
+                key: "dss2",
+              }),
+            ]);
+            console.log("✓ Todos los catálogos cargados correctamente");
+          } catch (error) {
+            console.error("Error cargando datos astronómicos:", error);
+          }
+
+          // Solicitar permisos de sensores de movimiento
+          requestOrientationPermission();
+        },
+      });
+
+      // ============================================================
+      // CONTROL DE ZOOM POR ARDUINO (TECLADO)
+      // ============================================================
+      function applyZoom(level) {
+        if (!engine || !ZOOM_LEVELS[level]) return;
+
+        currentZoomLevel = level;
+        const zoomConfig = ZOOM_LEVELS[level];
+
+        engine.core.fov = zoomConfig.fov;
+
+        // Actualizar indicador visual
+        document.getElementById(
+          "zoom-indicator"
+        ).textContent = `Lente: ${level} (${zoomConfig.label})`;
+
+        console.log(`Zoom cambiado a nivel ${level}: ${zoomConfig.label}`);
+      }
+
+      // Escuchar teclas del Arduino (simulado como teclado)
+      document.addEventListener("keydown", (event) => {
+        const key = event.key;
+
+        // Arduino envía teclas 1, 2, 3, 4
+        if (key >= "1" && key <= "4") {
+          const level = parseInt(key);
+          applyZoom(level);
+          event.preventDefault();
+        }
+      });
+
+      // ============================================================
+      // CONTROL DE ORIENTACIÓN POR SENSORES DE LA TABLET
+      // ============================================================
+      function requestOrientationPermission() {
+        // En iOS 13+ se necesita permiso explícito
+        if (
+          typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function"
+        ) {
+          DeviceOrientationEvent.requestPermission()
+            .then((permissionState) => {
+              if (permissionState === "granted") {
+                permissionGranted = true;
+                startOrientationTracking();
+                console.log("Permiso de orientación concedido");
+              } else {
+                console.warn("Permiso de orientación denegado");
+                alert(
+                  "Por favor, concede permisos de orientación para usar la app"
+                );
+              }
+            })
+            .catch(console.error);
+        } else {
+          // Android y navegadores que no requieren permiso
+          permissionGranted = true;
+          startOrientationTracking();
+          console.log("Orientación habilitada automáticamente");
+        }
+      }
+
+      function startOrientationTracking() {
+        window.addEventListener("deviceorientation", handleOrientation, true);
+      }
+
+      function handleOrientation(event) {
+        if (!engine || !permissionGranted) return;
+
+        // Obtener ángulos del dispositivo
+        deviceAlpha = event.alpha || 0; // Brújula (0-360°)
+        deviceBeta = event.beta || 0; // Inclinación frontal (-180 a 180°)
+        deviceGamma = event.gamma || 0; // Inclinación lateral (-90 a 90°)
+
+        // Convertir a sistema de coordenadas de Stellarium
+        // Yaw (azimut horizontal) - rotación alrededor del eje Z
+        const yaw = -deviceAlpha * (Math.PI / 180);
+
+        // Pitch (altitud vertical) - rotación alrededor del eje X
+        // Beta va de -180 a 180, queremos mapear a pitch apropiado
+        let pitch;
+        if (Math.abs(deviceGamma) > 90) {
+          // Tablet boca abajo
+          pitch = (180 - deviceBeta) * (Math.PI / 180);
+        } else {
+          // Tablet en orientación normal
+          pitch = deviceBeta * (Math.PI / 180);
+        }
+
+        // Limitar pitch para evitar gimbal lock
+        pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+
+        // Aplicar orientación a Stellarium
+        engine.core.observer.yaw = yaw;
+        engine.core.observer.pitch = pitch;
+      }
+
+      // ============================================================
+      // FUNCIONES ADICIONALES
+      // ============================================================
+
+      // Pantalla completa al hacer tap (útil para tablet)
+      document.addEventListener("dblclick", () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(console.error);
+        } else {
+          document.exitFullscreen().catch(console.error);
+        }
+      });
+
+      // Evitar zoom por pinch en la tablet
+      document.addEventListener(
+        "touchmove",
+        (event) => {
+          if (event.touches.length > 1) {
+            event.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+
+      // Mantener pantalla activa
+      let wakeLock = null;
+      async function requestWakeLock() {
+        try {
+          if ("wakeLock" in navigator) {
+            wakeLock = await navigator.wakeLock.request("screen");
+            console.log("Wake Lock activado");
+          }
+        } catch (err) {
+          console.log("Wake Lock no disponible:", err);
+        }
+      }
+      requestWakeLock();
+
+      // Información de debug (opcional - eliminar en producción)
+      setInterval(() => {
+        if (engine && permissionGranted) {
+          console.log(
+            `Orientación - Alpha: ${deviceAlpha.toFixed(
+              1
+            )}°, Beta: ${deviceBeta.toFixed(1)}°, Gamma: ${deviceGamma.toFixed(
+              1
+            )}°`
+          );
+        }
+      }, 5000);
     </script>
-    <script src="limit_mag/params.js"></script>
-    <script type="module" src="limit_mag/limit_magnitude.js"></script>
-
-    <script type="module" src="util/time.js"></script>
-    <script type="module" src="util/getObject.js"></script>
-    <script src="seeing/seeing_sim.js"></script>
-
-    <!-- Init stellarium web engine -->
-    <script type="module">
-      import { initializeStelEngine } from "./util/initStel.js";
-      initializeStelEngine(false);
-    </script>
-    <script type="module" src="util/stel.js"></script>
-    <script type="module" src="util/overlay.js"></script>
-    <script type="module" src="util/location.js"></script>
-
-<style>
-#nolens {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display:none;
-
-  backdrop-filter: blur(90px);
-  -webkit-backdrop-filter: blur(90px);
-
-}
-</style>
-    <div id="nolens">
-
-
-    </div>
-
-        <script>
-    
-
-
-    function noLenBlurry(){
-      document.getElementById("nolens").style.display = "block";
-      console.log("nolen")
-    }
-
-    function yesLenNormal(){
-      document.getElementById("nolens").style.display = "none";
-      console.log("len")
-    }
-    </script>
-    <script type="module" src="util/protobject.js"></script>
-
-
   </body>
 </html>
