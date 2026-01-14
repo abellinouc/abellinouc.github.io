@@ -76,88 +76,159 @@
 
           console.log("Stellarium Web Engine inicializado");
 
-          // Configuración minimalista básica
-          core.observer.utc = Date.now() / 86400000 + 2440587.5; // Julian Date
+          // Configuración de fecha/hora actual usando Julian Date
+          const now = new Date();
+          core.observer.utc = now.getTime() / 86400000 + 2440587.5;
 
-          // Ubicación por defecto (Santiago, Chile) - puedes cambiarla
-          core.observer.latitude = -33.4489 * (Math.PI / 180);
-          core.observer.longitude = -70.6693 * (Math.PI / 180);
-          core.observer.elevation = 570;
+          // Ubicación por defecto (Santiago, Chile)
+          const defaultLocation = {
+            cityName: "Santiago",
+            lat: -33.4489,
+            lon: -70.6693,
+            elev: 570,
+            mag: 17.13,
+          };
+
+          core.observer.latitude = defaultLocation.lat * (Math.PI / 180);
+          core.observer.longitude = defaultLocation.lon * (Math.PI / 180);
+          core.observer.elevation = defaultLocation.elev;
 
           // Aplicar zoom inicial
           applyZoom(currentZoomLevel);
 
-          // Configuración visual para exploración
-          //core.atmosphere.visible = false;
-          //core.landscapes.visible = false;
-          core.stars.hints_visible = true; // Mostrar nombres de estrellas
-          //core.planets.hints_visible = true; // Mostrar nombres de planetas
-          core.constellations.lines_visible = true;
-          core.constellations.images_visible = true;
-          core.constellations.labels_visible = true; // Mostrar nombres de constelaciones
-          //core.cardinals.visible = false;
-          //core.milkyway.visible = true;
-          //core.star_relative_scale = 1.0;
-          //core.stars.label_amount = 3.0; // Mostrar más nombres de estrellas
-          //core.dso.hints_visible = true; // Mostrar objetos de espacio profundo
-          //core.minor_planets.hints_visible = true; // Mostrar asteroides/cometas
+          // Dentro del index.html que sirve el puerto 8080:
+          const baseUrl = "http://localhost:5000/";
+          const baseUrlBig = "http://localhost:5000/";
 
-          const baseUrl = "https://vtdata-telescope.alessiobellino.com/";
+          // Array para almacenar todas las promesas de carga de datos
+          const dataSourcePromises = [];
 
-          // Cargar catálogos de estrellas (minimal, base y extended para zoom alto)
+          // Data sources básicas (estrellas minimal y base)
+          dataSourcePromises.push(
+            core.stars.addDataSource({
+              url:
+                baseUrl +
+                "swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars",
+              key: "minimal",
+            })
+          );
+          dataSourcePromises.push(
+            core.stars.addDataSource({
+              url:
+                baseUrl +
+                "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars",
+              key: "base",
+            })
+          );
+          dataSourcePromises.push(
+            core.landscapes.addDataSource({
+              url: baseUrl + "landscapes/v1/guereins",
+              key: "guereins",
+            })
+          );
+
+          // Planetas y lunas del sistema solar
+          [
+            "moon",
+            "sun",
+            "jupiter",
+            "mercury",
+            "venus",
+            "mars",
+            "saturn",
+            "uranus",
+            "neptune",
+            "io",
+            "europa",
+            "ganymede",
+            "callisto",
+            "moon-normal",
+          ].forEach((p) => {
+            dataSourcePromises.push(
+              core.planets.addDataSource({
+                url: baseUrl + `surveys/sso/${p}/v1`,
+                key: p,
+              })
+            );
+          });
+
+          // Data sources adicionales (extended catalogs)
+          dataSourcePromises.push(
+            core.stars.addDataSource({
+              url:
+                baseUrl +
+                "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars",
+              key: "extended",
+            })
+          );
+          dataSourcePromises.push(
+            core.dss.addDataSource({
+              url: baseUrlBig + "surveys/gaia/v1",
+              key: "gaia",
+            })
+          );
+          dataSourcePromises.push(
+            core.skycultures.addDataSource({
+              url: baseUrl + "skycultures/v3/western",
+              key: "western",
+            })
+          );
+          dataSourcePromises.push(
+            core.dsos.addDataSource({
+              url:
+                baseUrl +
+                "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/dso",
+            })
+          );
+          dataSourcePromises.push(
+            core.dsos.addDataSource({
+              url:
+                baseUrl +
+                "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/dso",
+            })
+          );
+          dataSourcePromises.push(
+            core.milkyway.addDataSource({
+              url: baseUrl + "surveys/milkyway/v1",
+            })
+          );
+          dataSourcePromises.push(
+            core.dss.addDataSource({ url: baseUrlBig + "surveys/dss/v1" })
+          );
+          dataSourcePromises.push(
+            core.minor_planets.addDataSource({
+              url: baseUrl + "mpc/v1/mpcorb.dat",
+              key: "mpc_asteroids",
+            })
+          );
+          dataSourcePromises.push(
+            core.comets.addDataSource({
+              url: baseUrl + "mpc/v1/CometEls.txt?v=2019-12-17",
+              key: "mpc_comets",
+            })
+          );
+
+          // Esperar a que todas las fuentes de datos se carguen
           try {
-            await Promise.all([
-              // Catálogo mínimo (estrellas más brillantes)
-              core.stars.addDataSource({
-                url:
-                  baseUrl +
-                  "swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars",
-                key: "minimal",
-              }),
-              // Catálogo base (estrellas medias)
-              core.stars.addDataSource({
-                url:
-                  baseUrl +
-                  "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars",
-                key: "base",
-              }),
-              // Catálogo extendido (muchas más estrellas para zoom alto)
-              core.stars.addDataSource({
-                url:
-                  baseUrl +
-                  "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars",
-                key: "extended",
-              }),
-              // Planetas del sistema solar
-              ...[
-                "moon",
-                "sun",
-                "jupiter",
-                "mercury",
-                "venus",
-                "mars",
-                "saturn",
-                "uranus",
-                "neptune",
-                "io",
-                "europa",
-                "ganymede",
-                "callisto",
-              ].map((planet) =>
-                core.planets.addDataSource({
-                  url: baseUrl + `surveys/sso/${planet}/v1`,
-                  key: planet,
-                })
-              ),
-              // Catálogo DSO (Deep Sky Objects - galaxias, nebulosas, cúmulos)
-              core.dso.addDataSource({
-                url: baseUrl + "surveys/dss2/v1",
-                key: "dss2",
-              }),
-            ]);
-            console.log("✓ Todos los catálogos cargados correctamente");
+            await Promise.all(dataSourcePromises);
+            console.log("✓ Todas las fuentes de datos cargadas correctamente");
+
+            // Configuración visual después de cargar datos
+            core.planets.hints_visible = true;
+            core.dsos.hints_visible = true;
+            core.minor_planets.hints_visible = false;
+            core.dss.hints_visible = false;
+            core.stars.hints_visible = true;
+            core.comets.hints_visible = false;
+            core.cardinals.visible = false;
+            core.constellations.lines_visible = true;
+            core.constellations.images_visible = false;
+            core.constellations.labels_visible = true;
+            core.star_relative_scale = 1.0;
+            core.stars.label_amount = 3.0;
+            core.exposure_scale = 2;
           } catch (error) {
-            console.error("Error cargando datos astronómicos:", error);
+            console.error("Error cargando fuentes de datos:", error);
           }
 
           // Solicitar permisos de sensores de movimiento
