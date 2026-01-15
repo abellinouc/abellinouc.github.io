@@ -24,6 +24,11 @@
         display: block;
       }
 
+      /* Clase para el estado "Sin Lente" */
+      .defocused {
+        filter: blur(15px) grayscale(0.3);
+      }
+
       #zoom-indicator {
         position: fixed;
         top: 20px;
@@ -49,15 +54,16 @@
 
     <script>
       let engine;
-      let currentZoomLevel = 1;
+      let currentZoomLevel = 0;
 
       // Configuración de niveles de zoom fijos (Field of View en radianes)
       // Simulando lentes de telescopio: 10mm, 20mm, 32mm, 40mm
-      const ZOOM_LEVELS = {
-        1: { fov: 1.047, label: "10mm (60°)" }, // ~60 grados - vista amplia
-        2: { fov: 0.524, label: "20mm (30°)" }, // ~30 grados - vista media
-        3: { fov: 0.175, label: "32mm (10°)" }, // ~10 grados - zoom alto
-        4: { fov: 0.0349, label: "40mm (2°)" }, // ~2 grados - zoom máximo
+     const ZOOM_LEVELS = {
+        0: { fov: 2.0, label: "Sin Lente" }, // FOV muy amplio (~115°)
+        1: { fov: 1.047, label: "10mm (60°)" }, 
+        2: { fov: 0.524, label: "20mm (30°)" }, 
+        3: { fov: 0.175, label: "32mm (10°)" }, 
+        4: { fov: 0.0349, label: "40mm (2°)" }, 
       };
 
       // Variables para orientación
@@ -95,8 +101,6 @@
           core.observer.longitude = defaultLocation.lon * (Math.PI / 180);
           core.observer.elevation = defaultLocation.elev;
 
-          // Aplicar zoom inicial
-          applyZoom(currentZoomLevel);
 
           // Dentro del index.html que sirve el puerto 8080:
           const baseUrl = "http://localhost:5000/";
@@ -233,36 +237,45 @@
             console.error("Error cargando fuentes de datos:", error);
           }
 
-          // Solicitar permisos de sensores de movimiento
+          // Aplicar zoom inicial
+          applyZoom(currentZoomLevel);
+
           Orientation.start(engine);
         },
       });
 
       // ============================================================
-      // CONTROL DE ZOOM POR ARDUINO (TECLADO)
+      // LÓGICA DE ZOOM Y DESENFOQUE
       // ============================================================
       function applyZoom(level) {
-        if (!engine || !ZOOM_LEVELS[level]) return;
+        if (!engine || ZOOM_LEVELS[level] === undefined) return;
 
         currentZoomLevel = level;
         const zoomConfig = ZOOM_LEVELS[level];
+        const canvas = document.getElementById("stel-canvas");
 
+        // Aplicar el Field of View
         engine.core.fov = zoomConfig.fov;
 
-        // Actualizar indicador visual
-        document.getElementById(
-          "zoom-indicator"
-        ).textContent = `Lente: ${level} (${zoomConfig.label})`;
+        // EFECTO VISUAL: Si es nivel 0, desenfocamos el canvas
+        if (level === 0) {
+          canvas.classList.add("defocused");
+        } else {
+          canvas.classList.remove("defocused");
+        }
 
-        console.log(`Zoom cambiado a nivel ${level}: ${zoomConfig.label}`);
+        // Actualizar indicador visual
+        document.getElementById("zoom-indicator").textContent = 
+          `Lente: ${level} (${zoomConfig.label})`;
+
+        console.log(`Modo: ${zoomConfig.label}`);
       }
 
-      // Escuchar teclas del Arduino (simulado como teclado)
+      // Escuchar teclas del Arduino (0, 1, 2, 3, 4)
       document.addEventListener("keydown", (event) => {
         const key = event.key;
 
-        // Arduino envía teclas 1, 2, 3, 4
-        if (key >= "1" && key <= "4") {
+        if (key >= "0" && key <= "4") {
           const level = parseInt(key);
           applyZoom(level);
           event.preventDefault();
@@ -272,40 +285,6 @@
       // ============================================================
       // FUNCIONES ADICIONALES
       // ============================================================
-
-      // Pantalla completa al hacer tap (útil para tablet)
-      document.addEventListener("dblclick", () => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(console.error);
-        } else {
-          document.exitFullscreen().catch(console.error);
-        }
-      });
-
-      // Evitar zoom por pinch en la tablet
-      document.addEventListener(
-        "touchmove",
-        (event) => {
-          if (event.touches.length > 1) {
-            event.preventDefault();
-          }
-        },
-        { passive: false }
-      );
-
-      // Mantener pantalla activa
-      let wakeLock = null;
-      async function requestWakeLock() {
-        try {
-          if ("wakeLock" in navigator) {
-            wakeLock = await navigator.wakeLock.request("screen");
-            console.log("Wake Lock activado");
-          }
-        } catch (err) {
-          console.log("Wake Lock no disponible:", err);
-        }
-      }
-      requestWakeLock();
 
       // Información de debug (opcional - eliminar en producción)
       setInterval(() => {
