@@ -45,6 +45,8 @@
     <!-- Stellarium Web Engine -->
     <script src="stellarium-web-engine.js"></script>
 
+    <script type="module" src="orientation.js"></script>
+
     <script>
       let engine;
       let currentZoomLevel = 1;
@@ -232,7 +234,7 @@
           }
 
           // Solicitar permisos de sensores de movimiento
-          requestOrientationPermission();
+          Orientation.start(engine);
         },
       });
 
@@ -266,72 +268,6 @@
           event.preventDefault();
         }
       });
-
-      // ============================================================
-      // CONTROL DE ORIENTACIÓN POR SENSORES DE LA TABLET
-      // ============================================================
-      function requestOrientationPermission() {
-        // En iOS 13+ se necesita permiso explícito
-        if (
-          typeof DeviceOrientationEvent !== "undefined" &&
-          typeof DeviceOrientationEvent.requestPermission === "function"
-        ) {
-          DeviceOrientationEvent.requestPermission()
-            .then((permissionState) => {
-              if (permissionState === "granted") {
-                permissionGranted = true;
-                startOrientationTracking();
-                console.log("Permiso de orientación concedido");
-              } else {
-                console.warn("Permiso de orientación denegado");
-                alert(
-                  "Por favor, concede permisos de orientación para usar la app"
-                );
-              }
-            })
-            .catch(console.error);
-        } else {
-          // Android y navegadores que no requieren permiso
-          permissionGranted = true;
-          startOrientationTracking();
-          console.log("Orientación habilitada automáticamente");
-        }
-      }
-
-      function startOrientationTracking() {
-        window.addEventListener("deviceorientation", handleOrientation, true);
-      }
-
-      function handleOrientation(event) {
-        if (!engine || !permissionGranted) return;
-
-        // Obtener ángulos del dispositivo
-        deviceAlpha = event.alpha || 0; // Brújula (0-360°)
-        deviceBeta = event.beta || 0; // Inclinación frontal (-180 a 180°)
-        deviceGamma = event.gamma || 0; // Inclinación lateral (-90 a 90°)
-
-        // Convertir a sistema de coordenadas de Stellarium
-        // Yaw (azimut horizontal) - rotación alrededor del eje Z
-        const yaw = -deviceAlpha * (Math.PI / 180);
-
-        // Pitch (altitud vertical) - rotación alrededor del eje X
-        // Beta va de -180 a 180, queremos mapear a pitch apropiado
-        let pitch;
-        if (Math.abs(deviceGamma) > 90) {
-          // Tablet boca abajo
-          pitch = (180 - deviceBeta) * (Math.PI / 180);
-        } else {
-          // Tablet en orientación normal
-          pitch = deviceBeta * (Math.PI / 180);
-        }
-
-        // Limitar pitch para evitar gimbal lock
-        pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
-
-        // Aplicar orientación a Stellarium
-        engine.core.observer.yaw = yaw;
-        engine.core.observer.pitch = pitch;
-      }
 
       // ============================================================
       // FUNCIONES ADICIONALES
