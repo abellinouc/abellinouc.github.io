@@ -239,10 +239,44 @@
 
           // Aplicar zoom inicial
           applyZoom(currentZoomLevel);
+           requestOrientationPermission()
 
-          Orientation.start(engine);
+          
         },
       });
+
+
+       function requestOrientationPermission() {
+        // En iOS 13+ se necesita permiso explícito
+        if (
+          typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function"
+        ) {
+          DeviceOrientationEvent.requestPermission()
+            .then((permissionState) => {
+              if (permissionState === "granted") {
+                permissionGranted = true;
+                startOrientationTracking();
+                console.log("Permiso de orientación concedido");
+              } else {
+                console.warn("Permiso de orientación denegado");
+                alert(
+                  "Por favor, concede permisos de orientación para usar la app"
+                );
+              }
+            })
+            .catch(console.error);
+        } else {
+          // Android y navegadores que no requieren permiso
+          permissionGranted = true;
+          startOrientationTracking();
+          console.log("Orientación habilitada automáticamente");
+        }
+      }
+
+      function startOrientationTracking() {
+        Orientation.start(engine);
+      }
 
       // ============================================================
       // LÓGICA DE ZOOM Y DESENFOQUE
@@ -281,23 +315,6 @@
           event.preventDefault();
         }
       });
-
-      // ============================================================
-      // FUNCIONES ADICIONALES
-      // ============================================================
-
-      // Información de debug (opcional - eliminar en producción)
-      setInterval(() => {
-        if (engine && permissionGranted) {
-          console.log(
-            `Orientación - Alpha: ${deviceAlpha.toFixed(
-              1
-            )}°, Beta: ${deviceBeta.toFixed(1)}°, Gamma: ${deviceGamma.toFixed(
-              1
-            )}°`
-          );
-        }
-      }, 5000);
     </script>
   </body>
 </html>
