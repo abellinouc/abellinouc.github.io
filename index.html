@@ -234,7 +234,7 @@
       function updateStellariumView({ h, v }) {
         if (!engine || !engine.core || !engine.core.observer) return;
         engine.core.observer.yaw = -h;
-        engine.core.observer.pitch = v;
+        engine.core.observer.pitch = -v;
       }
 
       function updateStellariumFov({ fov }) {
