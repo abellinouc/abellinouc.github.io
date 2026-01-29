@@ -58,11 +58,21 @@
         4: { fov: 0.0349, label: "40mm (2°)" }, // ~2 grados - zoom máximo
       };
 
-      // Variables para orientación
-      let deviceAlpha = 0;
-      let deviceBeta = 0;
-      let deviceGamma = 0;
-      let permissionGranted = false;
+      // ============================================================
+      // CONSTANTES Y VARIABLES GLOBALES DE FOV
+      // ============================================================
+      const MAX_FOV = 3.228859;
+      const MIN_FOV = 0.000005;
+      const FOV_STEP = 0.000001;
+
+      // ============================================================
+      // VARIABLES Y CONFIGURACIÓN DE ORIENTACIÓN AVANZADA
+      // ============================================================
+      let currentLensLevel = 0;
+      let FOCAL_LENGTH = 1200;
+      let EYEPIECE_FL = 25;
+      let logFov = Math.log(MAX_FOV);
+      let currentBlur = 0;
 
       // ============================================================
       // INICIALIZACIÓN DE STELLARIUM WEB ENGINE
@@ -97,8 +107,8 @@
           applyZoom(currentZoomLevel);
 
           // Dentro del index.html que sirve el puerto 8080:
-          const baseUrl = "http://localhost:5000/";
-          const baseUrlBig = "http://localhost:5000/";
+          const baseUrl = "https://smalldata.ventanaceleste.com/"
+            const baseUrlBig = "https://bigdata.ventanaceleste.com/"
 
           // Array para almacenar todas las promesas de carga de datos
           const dataSourcePromises = [];
@@ -230,14 +240,294 @@
           } catch (error) {
             console.error("Error cargando fuentes de datos:", error);
           }
-
-          // Solicitar permisos de sensores de movimiento
-          requestOrientationPermission();
         },
       });
 
       // ============================================================
-      // CONTROL DE ZOOM POR ARDUINO (TECLADO)
+      // FUNCIÓN AUXILIAR DE ORIENTACIÓN
+      // ============================================================
+      function unwrapAngle(angle, reference) {
+        while (angle - reference > Math.PI) angle -= 2 * Math.PI;
+        while (angle - reference < -Math.PI) angle += 2 * Math.PI;
+        return angle;
+      }
+
+      // ============================================================
+      // FUNCIONES DE ACTUALIZACIÓN DE VISTA
+      // ============================================================
+      window.updatePitchYaw = window.updatePitchYaw || function () {};
+
+      function updateStellariumView({ h, v }) {
+        if (!engine || !engine.core || !engine.core.observer) return;
+        engine.core.observer.yaw = -h;
+        engine.core.observer.pitch = v;
+      }
+
+      function updateStellariumFov({ fov }) {
+        if (!engine || !engine.core) return;
+        engine.core.fov = fov;
+        const deg_fov = (fov * 180) / Math.PI;
+        EYEPIECE_FL = (FOCAL_LENGTH * deg_fov) / 100;
+      }
+
+      function updateStellariumBlur({ blur }) {
+        const canvasBlur = document.getElementById("stel-canvas");
+        if (canvasBlur) canvasBlur.style.filter = `blur(${blur}px)`;
+      }
+
+      // ============================================================
+      // SISTEMA DE ORIENTACIÓN AVANZADO (GYRO + ABSOLUTE ORIENTATION)
+      // ============================================================
+      window.Orientation = {
+        gyroFreq: 100,
+        absFreq: 30,
+        calibDuration: 3,
+        fovThreshold: 0.8,
+        gyroDeadzone: 0.003,
+        dynamicThreshold: 0.02,
+        dynamicGainMultiplier: 10.0,
+        dynamicSmoothingFactor: 0.15,
+        gyroSensor: null,
+        absSensor: null,
+        running: false,
+        calibrating: false,
+        gyroBias: { x: 0, y: 0, z: 0 },
+        biasSamples: [],
+        calibSamplesNeeded: 300,
+        orient: { pitch: 0, yaw: 0 },
+        absOrientLast: null,
+        currentMode: "absolute",
+        oldX: null,
+        oldY: null,
+        rawDynamicX: null,
+        rawDynamicY: null,
+        lastTime: null,
+        _pendingRAF: false,
+
+        quaternionToEuler(q) {
+          if (!q) return { yaw: 0, pitch: 0 };
+          const x = q[0], y = q[1], z = q[2], w = q[3];
+          const pitch = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
+          const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+          return { yaw, pitch };
+        },
+
+        start() {
+          this.onCalibReading = this.onCalibReading.bind(this);
+          this.onSensorReading = this.onSensorReading.bind(this);
+          this.onAbsReading = this.onAbsReading.bind(this);
+          this.startSensors();
+        },
+
+        stop() {
+          this.running = false;
+          this.calibrating = false;
+          if (this.gyroSensor) { try { this.gyroSensor.stop(); } catch (e) {} }
+          if (this.absSensor) { try { this.absSensor.stop(); } catch (e) {} }
+        },
+
+        async requestIOSPermissionIfNeeded() {
+          if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+            await DeviceOrientationEvent.requestPermission();
+          }
+        },
+
+        async startSensors() {
+          try {
+            await this.requestIOSPermissionIfNeeded();
+            if (!("Gyroscope" in window) || !("AbsoluteOrientationSensor" in window)) {
+              throw new Error("Sensori necessari non disponibili");
+            }
+            this.gyroSensor = new Gyroscope({ frequency: this.gyroFreq });
+            this.absSensor = new AbsoluteOrientationSensor({ frequency: this.absFreq });
+            this.startCalibration();
+          } catch (err) {
+            console.error("Errore avvio sensori:", err);
+            window.updatePitchYaw(0, 0, { status: "Error: " + err.message });
+          }
+        },
+
+        startCalibration() {
+          if (!this.gyroSensor || !this.absSensor) return;
+          this.calibrating = true;
+          this.running = false;
+          this.biasSamples = [];
+          this.calibSamplesNeeded = this.gyroFreq * this.calibDuration;
+          this.currentMode = "absolute";
+          window.updatePitchYaw(0, 0, { status: "Calibrating..." });
+          this.gyroSensor.addEventListener("reading", this.onCalibReading);
+          this.absSensor.addEventListener("reading", this.onAbsReading);
+          this.gyroSensor.start();
+          this.absSensor.start();
+        },
+
+        onCalibReading() {
+          if (this.biasSamples.length < this.calibSamplesNeeded) {
+            this.biasSamples.push({ x: this.gyroSensor.x, y: this.gyroSensor.y, z: this.gyroSensor.z });
+          } else {
+            this.finishCalibration();
+          }
+        },
+
+        finishCalibration() {
+          this.calibrating = false;
+          this.gyroSensor.removeEventListener("reading", this.onCalibReading);
+          const avg = this.biasSamples.reduce((acc, r) => ({ x: acc.x + r.x, y: acc.y + r.y, z: acc.z + r.z }), { x: 0, y: 0, z: 0 });
+          const len = this.biasSamples.length || 1;
+          this.gyroBias = { x: avg.x / len, y: avg.y / len, z: avg.z / len };
+          if (this.absOrientLast) {
+            const euler = this.quaternionToEuler(this.absOrientLast);
+            this.oldX = euler.yaw; this.oldY = euler.pitch;
+          }
+          this.lastTime = performance.now();
+          this.gyroSensor.addEventListener("reading", this.onSensorReading);
+          this.running = true;
+        },
+
+        onAbsReading() {
+          if (!this.absSensor) return;
+          this.absOrientLast = this.absSensor.quaternion;
+        },
+
+        onSensorReading() {
+          if (this.calibrating) { this.lastTime = performance.now(); return; }
+          const now = performance.now();
+          const dt = Math.max(1e-6, (now - this.lastTime) / 1000);
+          this.lastTime = now;
+
+          let currentV = 0.05;
+          try { if (typeof logFov !== "undefined") currentV = Math.exp(logFov); } catch (e) {}
+
+          const inDynamicZone = currentV < this.dynamicThreshold;
+
+          if (inDynamicZone) {
+            let wx = this.gyroSensor.x - this.gyroBias.x;
+            let wz = this.gyroSensor.z - this.gyroBias.z;
+            let rawDeltaYaw = wz * dt;
+            let rawDeltaPitch = wx * dt;
+            const zoomRatio = currentV / this.dynamicThreshold;
+            const speed = Math.hypot(rawDeltaYaw, rawDeltaPitch);
+            const noiseFloor = 0.002;
+            let precisionGain = (speed < noiseFloor) ? 0.05 : Math.min(1.0, Math.pow(speed * 100, 2));
+            const totalFactor = zoomRatio * precisionGain * this.dynamicGainMultiplier;
+            if (this.rawDynamicX === null) { this.rawDynamicX = this.oldX; this.rawDynamicY = this.oldY; }
+            this.rawDynamicX += rawDeltaYaw * totalFactor;
+            this.rawDynamicY += rawDeltaPitch * totalFactor;
+            const k = this.dynamicSmoothingFactor;
+            this.oldX += (this.rawDynamicX - this.oldX) * k;
+            this.oldY += (this.rawDynamicY - this.oldY) * k;
+            this.orient.yaw = this.oldX;
+            this.orient.pitch = this.oldY;
+            this.updateView(currentV, "DYNAMIC");
+          } else {
+            this.rawDynamicX = null; this.rawDynamicY = null;
+            if (this.currentMode === "absolute" && this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.orient.pitch = euler.pitch; this.orient.yaw = euler.yaw;
+            } else {
+              let wx = this.gyroSensor.x - this.gyroBias.x;
+              let wz = this.gyroSensor.z - this.gyroBias.z;
+              if (Math.abs(wx) < this.gyroDeadzone) wx = 0;
+              if (Math.abs(wz) < this.gyroDeadzone) wz = 0;
+              this.orient.pitch += wx * dt;
+              this.orient.yaw += wz * dt;
+            }
+            this.runApplicationLogic(this.orient.pitch, this.orient.yaw, currentV);
+          }
+        },
+
+        runApplicationLogic(pitch, yaw, fov) {
+          const requiredMode = fov < this.fovThreshold ? "gyro" : "absolute";
+          if (requiredMode !== this.currentMode) this.transitionToMode(requiredMode);
+          const sensitivity = this.currentMode === "gyro" ? 0.1 : 0.5;
+          if (this.oldX === null || this.oldY === null) { this.oldX = yaw; this.oldY = pitch; return; }
+          const adjustedYaw = unwrapAngle(yaw, this.oldX);
+          this.oldX += (adjustedYaw - this.oldX) * sensitivity;
+          this.oldY += (pitch - this.oldY) * sensitivity;
+          this.updateView(fov, this.currentMode);
+        },
+
+        transitionToMode(newMode) {
+          if (newMode === "gyro" && this.currentMode === "absolute") {
+            if (this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.orient.pitch = euler.pitch; this.orient.yaw = euler.yaw;
+              this.oldX = euler.yaw; this.oldY = euler.pitch;
+            }
+          } else if (newMode === "absolute" && this.currentMode === "gyro") {
+            if (this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.oldX = unwrapAngle(euler.yaw, this.oldX);
+              this.oldY = euler.pitch;
+            }
+          }
+          this.currentMode = newMode;
+        },
+
+        updateView(vVal, modeName) {
+          const h = this.oldX;
+          const v = this.oldY;
+          window.updatePitchYaw(v, h, { vVal: vVal, mode: modeName, status: "Running" });
+          if (!this._pendingRAF) {
+            this._pendingRAF = true;
+            requestAnimationFrame(() => {
+              updateStellariumView({ h, v });
+              this._pendingRAF = false;
+            });
+          }
+        },
+      };
+
+      // ============================================================
+      // SISTEMA DE LENTES (FOV LEVELS)
+      // ============================================================
+      const LENS_FOCAL_LENGTHS = [null, 40, 32, 24, 16, 10, 4];
+      const NO_LENS_BLUR = 90;
+
+      function computeFovFromEyepiece(eyepieceFl) {
+        const m = FOCAL_LENGTH / eyepieceFl;
+        const proyection_const = 100;
+        let new_fov = proyection_const / m;
+        new_fov = (new_fov * Math.PI) / 180;
+        return new_fov;
+      }
+
+      function applyLensLevel(level) {
+        currentLensLevel = level;
+        if (level === 0) {
+          currentZoomLevel = level;
+          const zoomConfig = ZOOM_LEVELS[level];
+          engine.core.fov = zoomConfig.fov;
+          logFov = Math.log(zoomConfig.fov);
+          updateStellariumFov({ fov: zoomConfig.fov });
+          updateStellariumBlur({ blur: NO_LENS_BLUR });
+          return;
+        }
+        const eyepieceFl = LENS_FOCAL_LENGTHS[level];
+        if (!eyepieceFl) return;
+        EYEPIECE_FL = eyepieceFl;
+        const fov = computeFovFromEyepiece(eyepieceFl);
+        logFov = Math.log(fov);
+        updateStellariumFov({ fov });
+        updateStellariumBlur({ blur: 0 });
+      }
+
+      // ============================================================
+      // CONTROL DE ZOOM POR TECLAS
+      // ============================================================
+      // Escuchar teclas del Arduino (simulado como teclado)
+      document.addEventListener("keydown", (event) => {
+        const key = event.key;
+
+        // Soporte para teclas 0-6 para lentes y zoom
+        if (key >= "0" && key <= "6") {
+          applyLensLevel(parseInt(key, 10));
+          event.preventDefault();
+        }
+      });
+
+      // ============================================================
+      // FUNCIONES ADICIONALES
       // ============================================================
       function applyZoom(level) {
         if (!engine || !ZOOM_LEVELS[level]) return;
@@ -255,134 +545,11 @@
         console.log(`Zoom cambiado a nivel ${level}: ${zoomConfig.label}`);
       }
 
-      // Escuchar teclas del Arduino (simulado como teclado)
-      document.addEventListener("keydown", (event) => {
-        const key = event.key;
 
-        // Arduino envía teclas 1, 2, 3, 4
-        if (key >= "1" && key <= "4") {
-          const level = parseInt(key);
-          applyZoom(level);
-          event.preventDefault();
-        }
-      });
-
-      // ============================================================
-      // CONTROL DE ORIENTACIÓN POR SENSORES DE LA TABLET
-      // ============================================================
-      function requestOrientationPermission() {
-        // En iOS 13+ se necesita permiso explícito
-        if (
-          typeof DeviceOrientationEvent !== "undefined" &&
-          typeof DeviceOrientationEvent.requestPermission === "function"
-        ) {
-          DeviceOrientationEvent.requestPermission()
-            .then((permissionState) => {
-              if (permissionState === "granted") {
-                permissionGranted = true;
-                startOrientationTracking();
-                console.log("Permiso de orientación concedido");
-              } else {
-                console.warn("Permiso de orientación denegado");
-                alert(
-                  "Por favor, concede permisos de orientación para usar la app"
-                );
-              }
-            })
-            .catch(console.error);
-        } else {
-          // Android y navegadores que no requieren permiso
-          permissionGranted = true;
-          startOrientationTracking();
-          console.log("Orientación habilitada automáticamente");
-        }
-      }
-
-      function startOrientationTracking() {
-        window.addEventListener("deviceorientation", handleOrientation, true);
-      }
-
-      function handleOrientation(event) {
-        if (!engine || !permissionGranted) return;
-
-        // Obtener ángulos del dispositivo
-        deviceAlpha = event.alpha || 0; // Brújula (0-360°)
-        deviceBeta = event.beta || 0; // Inclinación frontal (-180 a 180°)
-        deviceGamma = event.gamma || 0; // Inclinación lateral (-90 a 90°)
-
-        // Convertir a sistema de coordenadas de Stellarium
-        // Yaw (azimut horizontal) - rotación alrededor del eje Z
-        const yaw = -deviceAlpha * (Math.PI / 180);
-
-        // Pitch (altitud vertical) - rotación alrededor del eje X
-        // Beta va de -180 a 180, queremos mapear a pitch apropiado
-        let pitch;
-        if (Math.abs(deviceGamma) > 90) {
-          // Tablet boca abajo
-          pitch = (180 - deviceBeta) * (Math.PI / 180);
-        } else {
-          // Tablet en orientación normal
-          pitch = deviceBeta * (Math.PI / 180);
-        }
-
-        // Limitar pitch para evitar gimbal lock
-        pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
-
-        // Aplicar orientación a Stellarium
-        engine.core.observer.yaw = yaw;
-        engine.core.observer.pitch = pitch;
-      }
-
-      // ============================================================
-      // FUNCIONES ADICIONALES
-      // ============================================================
-
-      // Pantalla completa al hacer tap (útil para tablet)
-      document.addEventListener("dblclick", () => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(console.error);
-        } else {
-          document.exitFullscreen().catch(console.error);
-        }
-      });
-
-      // Evitar zoom por pinch en la tablet
-      document.addEventListener(
-        "touchmove",
-        (event) => {
-          if (event.touches.length > 1) {
-            event.preventDefault();
-          }
-        },
-        { passive: false }
-      );
-
-      // Mantener pantalla activa
-      let wakeLock = null;
-      async function requestWakeLock() {
-        try {
-          if ("wakeLock" in navigator) {
-            wakeLock = await navigator.wakeLock.request("screen");
-            console.log("Wake Lock activado");
-          }
-        } catch (err) {
-          console.log("Wake Lock no disponible:", err);
-        }
-      }
-      requestWakeLock();
-
-      // Información de debug (opcional - eliminar en producción)
-      setInterval(() => {
-        if (engine && permissionGranted) {
-          console.log(
-            `Orientación - Alpha: ${deviceAlpha.toFixed(
-              1
-            )}°, Beta: ${deviceBeta.toFixed(1)}°, Gamma: ${deviceGamma.toFixed(
-              1
-            )}°`
-          );
-        }
-      }, 5000);
+      // Lanzamiento del sistema
+      applyZoom(currentZoomLevel);
+      window.Orientation.start();
+      applyLensLevel(0);
     </script>
   </body>
 </html>
