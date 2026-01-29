@@ -192,6 +192,7 @@
         engine.core.observer.latitude = lat * (Math.PI / 180);
         engine.core.observer.longitude = lon * (Math.PI / 180);
         engine.core.observer.elevation = elev;
+        engine.core.athmosphere
 
         CITY_SQM_READING = mag;
         applyPollution({ mag });
@@ -355,14 +356,16 @@
 
             try {
               await Promise.all(dataSourcePromises);
-              core.planets.hints_visible = false;
-              core.dsos.hints_visible = false;
-              core.minor_planets.hints_visible = false;
-              core.dss.hints_visible = false;
-              core.stars.hints_visible = false;
-              core.comets.hints_visible = false;
-              core.cardinals.visible = false;
+              // core.planets.hints_visible = false;
+              // core.dsos.hints_visible = false;
+              // core.minor_planets.hints_visible = false;
+              // core.dss.hints_visible = false;
+              // core.stars.hints_visible = false;
+              // core.comets.hints_visible = false;
+              // core.cardinals.visible = false;
               core.exposure_scale = 2;
+              core.atmosphere.visible = false;
+
             } catch (error) {
               console.error("Error loading data sources:", error);
             }
