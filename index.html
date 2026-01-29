@@ -64,6 +64,8 @@
 
       // ============================
       // Utilidades (limit_mag/limit_magnitude.js)
+      // NOTA: Estas funciones se mantienen por compatibilidad
+      // pero NO se usan para limitar visibilidad (modo "todo visible")
       // ============================
       function computeNELM() {
         let SQ = parseFloat(SQM_READING);
@@ -181,8 +183,10 @@
         window.bortle = bortle;
 
         engine.core.bortle_index = bortle;
-        engine.core.milkyway.visible = bortle < 6;
-        engine.core.display_limit_mag = calculate_limit_mag();
+        // Modo "todo visible": siempre mostrar Vía Láctea
+        engine.core.milkyway.visible = true;
+        // Mantener magnitud límite alta para máxima visibilidad
+        engine.core.display_limit_mag = 25;
         engine.core.star_relative_scale = 0.6;
       }
 
@@ -218,9 +222,11 @@
         if (!engine || !engine.core) return;
         engine.core.fov = fov;
 
+        // Actualizar EYEPIECE_FL para cálculos de lentes si es necesario
         const deg_fov = (fov * 180) / Math.PI;
         EYEPIECE_FL = (FOCAL_LENGTH * deg_fov) / 100;
-        engine.core.display_limit_mag = calculate_limit_mag();
+        // Modo "todo visible": mantener magnitud límite alta
+        engine.core.display_limit_mag = 25;
       }
 
       // ============================
@@ -355,14 +361,31 @@
 
             try {
               await Promise.all(dataSourcePromises);
-              core.planets.hints_visible = false;
-              core.dsos.hints_visible = false;
-              core.minor_planets.hints_visible = false;
-              core.dss.hints_visible = false;
-              core.stars.hints_visible = false;
-              core.comets.hints_visible = false;
-              core.cardinals.visible = false;
+              
+              // ============================
+              // Modo "todo visible" sin realismo
+              // ============================
+              // Desactivar atmósfera y paisaje
+              core.atmosphere.visible = false;
+              core.landscapes.visible = false;
+              
+              // Activar todas las etiquetas
+              core.stars.hints_visible = true;
+              core.planets.hints_visible = true;
+              core.dsos.hints_visible = true;
+              core.minor_planets.hints_visible = true;
+              core.comets.hints_visible = true;
+              
+              // Activar cardinales y vía láctea
+              core.cardinals.visible = true;
+              core.milkyway.visible = true;
+              
+              // Maximizar visibilidad: magnitud límite muy alta
+              core.display_limit_mag = 25;
+              
+              // Escala de exposición para mejor visibilidad
               core.exposure_scale = 2;
+
             } catch (error) {
               console.error("Error loading data sources:", error);
             }
