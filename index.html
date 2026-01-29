@@ -1,21 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AstroVis Minimalista</title>
+    <title>Stellarium Web Engine</title>
     <style>
-      * {
+      html,
+      body {
         margin: 0;
         padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         overflow: hidden;
         background: #000;
+      }
+
+      #stel {
+        width: 100%;
+        height: 100%;
+        position: fixed;
+        inset: 0;
       }
 
       #stel-canvas {
@@ -23,298 +27,709 @@
         height: 100%;
         display: block;
       }
-
-      /* Clase para el estado "Sin Lente" */
-      .defocused {
-        filter: blur(15px) grayscale(0.3);
-      }
-
-      #zoom-indicator {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 16px;
-        z-index: 1000;
-      }
     </style>
   </head>
-  <body>
-    <canvas id="stel-canvas"></canvas>
-    <div id="zoom-indicator">Lente: 1 (10mm)</div>
 
-    <!-- Stellarium Web Engine -->
+  <body>
+    <div id="stel">
+      <canvas id="stel-canvas"></canvas>
+    </div>
+
     <script src="stellarium-web-engine.js"></script>
 
-    <script type="module" src="orientation.js"></script>
-
     <script>
-      let engine;
-      let currentZoomLevel = 0;
+      // ============================
+      // Parámetros base (limit_mag/params.js)
+      // ============================
+      let FO, FD, FT, FS, K, MZZ, XX, BS, FB, DP, FP, FA, FM, FC, B, CC, KK, FE, TH, FR, I, IS, M;
 
-      // Configuración de niveles de zoom fijos (Field of View en radianes)
-      // Simulando lentes de telescopio: 10mm, 20mm, 32mm, 40mm
-     const ZOOM_LEVELS = {
-        0: { fov: 2.0, label: "Sin Lente" }, // FOV muy amplio (~115°)
-        1: { fov: 1.047, label: "10mm (60°)" }, 
-        2: { fov: 0.524, label: "20mm (30°)" }, 
-        3: { fov: 0.175, label: "32mm (10°)" }, 
-        4: { fov: 0.0349, label: "40mm (2°)" }, 
-      };
+      let DIAMETER = 100;
+      let FOCAL_LENGTH = 1200;
+      let EYEPIECE_FL = 25;
+      let EYEPIECE_AFOV = 50;
+      let CLEANLINESS = 0;
+      let TELESCOPE_TYPE = 2;
+      let COATING = 88;
 
-      // Variables para orientación
-      let deviceAlpha = 0;
-      let deviceBeta = 0;
-      let deviceGamma = 0;
-      let permissionGranted = false;
+      let PUPIL = 7;
+      let AGE = 30;
+      let EXPERIENCE = 3;
 
-      // ============================================================
-      // INICIALIZACIÓN DE STELLARIUM WEB ENGINE
-      // ============================================================
-      StelWebEngine({
-        wasmFile: "stellarium-web-engine.wasm",
-        canvas: document.getElementById("stel-canvas"),
-        async onReady(stel) {
-          engine = stel;
-          const core = stel.core;
+      let SQM_READING = 20;
+      let CITY_SQM_READING = 20;
+      let STAR_COLOR_INDEX = 0.6;
+      let ZENITH_DISTANCE = 0;
+      let EXTINCTION = 0.2;
+      let SEEING_DISK_DIAMETER = 3;
 
-          console.log("Stellarium Web Engine inicializado");
+      // ============================
+      // Utilidades (limit_mag/limit_magnitude.js)
+      // ============================
+      function computeNELM() {
+        let SQ = parseFloat(SQM_READING);
+        let T = SQ - 19.2;
+        let NELM = 7.93 - 5 * Math.log10(1 + 10 * Math.pow(10, -0.4 * T));
+        return NELM;
+      }
 
-          // Configuración de fecha/hora actual usando Julian Date
-          const now = new Date();
-          core.observer.utc = now.getTime() / 86400000 + 2440587.5;
+      function computeEyePupil() {
+        let E = 7 - (AGE - 20) / 30;
+        E = Math.max(2, Math.min(7, E));
+        return E;
+      }
 
-          // Ubicación por defecto (Santiago, Chile)
-          const defaultLocation = {
-            cityName: "Santiago",
-            lat: -33.4489,
-            lon: -70.6693,
-            elev: 570,
-            mag: 17.13,
-          };
+      function calculate_limit_mag() {
+        let UseInch = false;
+        let D = parseFloat(DIAMETER);
+        if (UseInch) D = D * 25.4;
 
-          core.observer.latitude = defaultLocation.lat * (Math.PI / 180);
-          core.observer.longitude = defaultLocation.lon * (Math.PI / 180);
-          core.observer.elevation = defaultLocation.elev;
+        let MG = parseFloat(FOCAL_LENGTH / EYEPIECE_FL);
+        let MZ = parseFloat(computeNELM());
+        let CI = parseFloat(STAR_COLOR_INDEX);
+        let Z = parseFloat(ZENITH_DISTANCE) * Math.PI / 180;
+        let KV = parseFloat(EXTINCTION);
+        let SE = parseFloat(SEEING_DISK_DIAMETER);
+        let EX = EXPERIENCE;
+        let DE = parseFloat(PUPIL);
 
+        if (isNaN(DE)) {
+          DE = computeEyePupil();
+          PUPIL = DE;
+        }
 
-          // Dentro del index.html que sirve el puerto 8080:
-          const baseUrl = "http://localhost:5000/";
-          const baseUrlBig = "http://localhost:5000/";
+        if (isNaN(MZ)) {
+          MZ = computeNELM();
+        }
 
-          // Array para almacenar todas las promesas de carga de datos
-          const dataSourcePromises = [];
+        let MT = 0;
+        if (TELESCOPE_TYPE == 1) {
+          MT = 0.2;
+        }
+        if (TELESCOPE_TYPE == 2) {
+          MT = 0.0;
+        }
+        if (TELESCOPE_TYPE == 3) {
+          MT = 0.1;
+        }
 
-          // Data sources básicas (estrellas minimal y base)
-          dataSourcePromises.push(
-            core.stars.addDataSource({
-              url:
-                baseUrl +
-                "swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars",
-              key: "minimal",
-            })
-          );
-          dataSourcePromises.push(
-            core.stars.addDataSource({
-              url:
-                baseUrl +
-                "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars",
-              key: "base",
-            })
-          );
-          dataSourcePromises.push(
-            core.landscapes.addDataSource({
-              url: baseUrl + "landscapes/v1/guereins",
-              key: "guereins",
-            })
-          );
+        let FS = (COATING / 100) * (1 - CLEANLINESS);
+        let F = Math.pow(FS, 2);
+        let CS = Math.pow(10, -0.4 * KV * (1 / Math.cos(Z) - 1));
+        let BS = Math.pow(10, 0.4 * (MZ - 6.5));
+        let FC = Math.pow(10, 0.4 * (CI - 0.6));
+        let FE = Math.pow(10, -0.4 * (EX - 1) / 4);
+        let K = 2.5 * Math.log10(
+          (D * D * F * CS * FC * FE) / (DE * DE * BS)
+        );
 
-          // Planetas y lunas del sistema solar
-          [
-            "moon",
-            "sun",
-            "jupiter",
-            "mercury",
-            "venus",
-            "mars",
-            "saturn",
-            "uranus",
-            "neptune",
-            "io",
-            "europa",
-            "ganymede",
-            "callisto",
-            "moon-normal",
-          ].forEach((p) => {
+        let HT = Math.max(1, MG / 2);
+        let HH = 1 / Math.sqrt(1 + Math.pow(HT, 2));
+        let SEF = Math.max(1, SE / 2);
+        let HF = 1 / Math.sqrt(1 + Math.pow(SEF, 2));
+        let S = 2.5 * Math.log10(HH * HF);
+
+        let ML = MZ + K + MT + S;
+        return ML;
+      }
+
+      // ============================
+      // Estado global mínimo
+      // ============================
+      window.MIN_FOV = 0.000005;
+      window.MAX_FOV = 3.228859;
+      window.FOV_STEP = 0.000001;
+      window.logFov = Math.log(MAX_FOV);
+      window.current_fov = MAX_FOV;
+
+      window.currentBlur = 5;
+
+      let engine = null;
+      let bortle = null;
+      window.engine = engine;
+      window.bortle = bortle;
+
+      // ============================
+      // util/time.js (solo lo necesario)
+      // ============================
+      function toJulianDateIso(iso) {
+        const now = new Date(iso);
+        const jd = now.getTime() / 86400000 + 2440587.5;
+        const mjd = jd - 2400000.5;
+        return mjd;
+      }
+
+      // ============================
+      // util/location.js (reutilizado)
+      // ============================
+      function magToBortle(magArcsec2) {
+        if (magArcsec2 > 21.99) return 1;
+        if (magArcsec2 > 21.89) return 2;
+        if (magArcsec2 > 21.69) return 3;
+        if (magArcsec2 > 20.49) return 4;
+        if (magArcsec2 > 19.5) return 5;
+        if (magArcsec2 > 18.94) return 6;
+        if (magArcsec2 > 18.38) return 7;
+        if (magArcsec2 > 16.53) return 8;
+        return 9;
+      }
+
+      function applyPollution({ mag = 20 }) {
+        if (!engine || !engine.core) return;
+
+        SQM_READING = mag;
+        bortle = magToBortle(mag);
+        window.bortle = bortle;
+
+        engine.core.bortle_index = bortle;
+        engine.core.milkyway.visible = bortle < 6;
+        engine.core.display_limit_mag = calculate_limit_mag();
+        engine.core.star_relative_scale = 0.6;
+      }
+
+      async function applyLocation({ cityName = "Custom", lat = 0, lon = 0, elev = 0, mag = null }) {
+        if (!engine) return;
+
+        engine.core.observer.latitude = lat * (Math.PI / 180);
+        engine.core.observer.longitude = lon * (Math.PI / 180);
+        engine.core.observer.elevation = elev;
+
+        CITY_SQM_READING = mag;
+        applyPollution({ mag });
+      }
+
+      // ============================
+      // util/overlay.js (solo blur)
+      // ============================
+      function updateStellariumBlur({ blur }) {
+        const canvasBlur = document.getElementById("stel-canvas");
+        if (canvasBlur) canvasBlur.style.filter = `blur(${blur}px)`;
+      }
+
+      // ============================
+      // util/stel.js (reutilizado)
+      // ============================
+      function updateStellariumView({ h, v }) {
+        if (!engine || !engine.core || !engine.core.observer) return;
+        engine.core.observer.yaw = -h;
+        engine.core.observer.pitch = v;
+      }
+
+      function updateStellariumFov({ fov }) {
+        if (!engine || !engine.core) return;
+        engine.core.fov = fov;
+
+        const deg_fov = (fov * 180) / Math.PI;
+        EYEPIECE_FL = (FOCAL_LENGTH * deg_fov) / 100;
+        engine.core.display_limit_mag = calculate_limit_mag();
+      }
+
+      // ============================
+      // util/initStel.js (reutilizado)
+      // ============================
+      function initializeStelEngine() {
+        StelWebEngine({
+          wasmFile: "stellarium-web-engine.wasm",
+          canvas: document.getElementById("stel-canvas"),
+          async onReady(stel) {
+            engine = stel;
+            window.engine = engine;
+            const core = stel.core;
+
+            core.observer.utc = toJulianDateIso(new Date().toISOString());
+
+            const defaultLocation = {
+              cityName: "Santiago",
+              lat: -33.4489,
+              lon: -70.6693,
+              elev: 570,
+              mag: 17.13,
+            };
+
+            const baseUrl = "http://localhost:5000/"
+            const baseUrlBig = "http://localhost:5000/"
+
+            const dataSourcePromises = [];
+
             dataSourcePromises.push(
-              core.planets.addDataSource({
-                url: baseUrl + `surveys/sso/${p}/v1`,
-                key: p,
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars",
+                key: "minimal",
               })
             );
-          });
+            dataSourcePromises.push(
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars",
+                key: "base",
+              })
+            );
+            dataSourcePromises.push(
+              core.landscapes.addDataSource({
+                url: baseUrl + "landscapes/v1/guereins",
+                key: "guereins",
+              })
+            );
 
-          // Data sources adicionales (extended catalogs)
-          dataSourcePromises.push(
-            core.stars.addDataSource({
-              url:
-                baseUrl +
-                "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars",
-              key: "extended",
-            })
-          );
-          dataSourcePromises.push(
-            core.dss.addDataSource({
-              url: baseUrlBig + "surveys/gaia/v1",
-              key: "gaia",
-            })
-          );
-          dataSourcePromises.push(
-            core.skycultures.addDataSource({
-              url: baseUrl + "skycultures/v3/western",
-              key: "western",
-            })
-          );
-          dataSourcePromises.push(
-            core.dsos.addDataSource({
-              url:
-                baseUrl +
-                "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/dso",
-            })
-          );
-          dataSourcePromises.push(
-            core.dsos.addDataSource({
-              url:
-                baseUrl +
-                "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/dso",
-            })
-          );
-          dataSourcePromises.push(
-            core.milkyway.addDataSource({
-              url: baseUrl + "surveys/milkyway/v1",
-            })
-          );
-          dataSourcePromises.push(
-            core.dss.addDataSource({ url: baseUrlBig + "surveys/dss/v1" })
-          );
-          dataSourcePromises.push(
-            core.minor_planets.addDataSource({
-              url: baseUrl + "mpc/v1/mpcorb.dat",
-              key: "mpc_asteroids",
-            })
-          );
-          dataSourcePromises.push(
-            core.comets.addDataSource({
-              url: baseUrl + "mpc/v1/CometEls.txt?v=2019-12-17",
-              key: "mpc_comets",
-            })
-          );
+            [
+              "moon",
+              "sun",
+              "jupiter",
+              "mercury",
+              "venus",
+              "mars",
+              "saturn",
+              "uranus",
+              "neptune",
+              "io",
+              "europa",
+              "ganymede",
+              "callisto",
+              "moon-normal",
+            ].forEach((p) => {
+              dataSourcePromises.push(
+                core.planets.addDataSource({
+                  url: baseUrl + `surveys/sso/${p}/v1`,
+                  key: p,
+                })
+              );
+            });
 
-          // Esperar a que todas las fuentes de datos se carguen
+            dataSourcePromises.push(
+              core.stars.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars",
+                key: "extended",
+              })
+            );
+            dataSourcePromises.push(
+              core.dss.addDataSource({
+                url: baseUrlBig + "surveys/gaia/v1",
+                key: "gaia",
+              })
+            );
+
+            dataSourcePromises.push(
+              core.skycultures.addDataSource({
+                url: baseUrl + "skycultures/v3/western",
+                key: "western",
+              })
+            );
+
+            dataSourcePromises.push(
+              core.dsos.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/dso",
+              })
+            );
+            dataSourcePromises.push(
+              core.dsos.addDataSource({
+                url:
+                  baseUrl +
+                  "swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/dso",
+              })
+            );
+
+            dataSourcePromises.push(
+              core.milkyway.addDataSource({ url: baseUrl + "surveys/milkyway/v1" })
+            );
+            dataSourcePromises.push(
+              core.dss.addDataSource({ url: baseUrlBig + "surveys/dss/v1" })
+            );
+            dataSourcePromises.push(
+              core.minor_planets.addDataSource({
+                url: baseUrl + "mpc/v1/mpcorb.dat",
+                key: "mpc_asteroids",
+              })
+            );
+            dataSourcePromises.push(
+              core.comets.addDataSource({
+                url: baseUrl + "mpc/v1/CometEls.txt?v=2019-12-17",
+                key: "mpc_comets",
+              })
+            );
+
+            try {
+              await Promise.all(dataSourcePromises);
+              core.planets.hints_visible = false;
+              core.dsos.hints_visible = false;
+              core.minor_planets.hints_visible = false;
+              core.dss.hints_visible = false;
+              core.stars.hints_visible = false;
+              core.comets.hints_visible = false;
+              core.cardinals.visible = false;
+              core.exposure_scale = 2;
+            } catch (error) {
+              console.error("Error loading data sources:", error);
+            }
+
+            applyLocation(defaultLocation);
+            applyLensLevel(currentLensLevel);
+          },
+        });
+      }
+
+      // ============================
+      // Orientación (telescope/utils/stellarium.js)
+      // ============================
+      function unwrapAngle(angle, reference) {
+        while (angle - reference > Math.PI) angle -= 2 * Math.PI;
+        while (angle - reference < -Math.PI) angle += 2 * Math.PI;
+        return angle;
+      }
+
+      window.updatePitchYaw = window.updatePitchYaw || function () {};
+
+      window.Orientation = {
+        gyroFreq: 100,
+        absFreq: 30,
+        calibDuration: 3,
+
+        fovThreshold: 0.8,
+        gyroDeadzone: 0.003,
+
+        dynamicThreshold: 0.02,
+        dynamicGainMultiplier: 10.0,
+        dynamicSmoothingFactor: 0.15,
+
+        gyroSensor: null,
+        absSensor: null,
+        running: false,
+        calibrating: false,
+        gyroBias: { x: 0, y: 0, z: 0 },
+        biasSamples: [],
+        calibSamplesNeeded: 300,
+
+        orient: { pitch: 0, yaw: 0 },
+        absOrientLast: null,
+        currentMode: "absolute",
+
+        oldX: null,
+        oldY: null,
+
+        rawDynamicX: null,
+        rawDynamicY: null,
+
+        lastTime: null,
+        _pendingRAF: false,
+
+        quaternionToEuler(q) {
+          if (!q) return { yaw: 0, pitch: 0 };
+          const x = q[0],
+            y = q[1],
+            z = q[2],
+            w = q[3];
+          const pitch = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
+          const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+          return { yaw, pitch };
+        },
+
+        start() {
+          this.onCalibReading = this.onCalibReading.bind(this);
+          this.onSensorReading = this.onSensorReading.bind(this);
+          this.onAbsReading = this.onAbsReading.bind(this);
+          this.startSensors();
+        },
+
+        stop() {
+          this.running = false;
+          this.calibrating = false;
+          if (this.gyroSensor) {
+            try {
+              this.gyroSensor.stop();
+            } catch (e) {}
+          }
+          if (this.absSensor) {
+            try {
+              this.absSensor.stop();
+            } catch (e) {}
+          }
+        },
+
+        async requestIOSPermissionIfNeeded() {
+          if (
+            typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function"
+          ) {
+            await DeviceOrientationEvent.requestPermission();
+          }
+        },
+
+        async startSensors() {
           try {
-            await Promise.all(dataSourcePromises);
-            console.log("✓ Todas las fuentes de datos cargadas correctamente");
+            await this.requestIOSPermissionIfNeeded();
+            if (!("Gyroscope" in window) || !("AbsoluteOrientationSensor" in window)) {
+              throw new Error("Sensori necessari non disponibili");
+            }
+            this.gyroSensor = new Gyroscope({ frequency: this.gyroFreq });
+            this.absSensor = new AbsoluteOrientationSensor({ frequency: this.absFreq });
 
-            // Configuración visual después de cargar datos
-            core.planets.hints_visible = true;
-            core.dsos.hints_visible = true;
-            core.minor_planets.hints_visible = false;
-            core.dss.hints_visible = false;
-            core.stars.hints_visible = true;
-            core.comets.hints_visible = false;
-            core.cardinals.visible = false;
-            core.constellations.lines_visible = true;
-            core.constellations.images_visible = false;
-            core.constellations.labels_visible = true;
-            core.star_relative_scale = 1.0;
-            core.stars.label_amount = 3.0;
-            core.exposure_scale = 2;
-          } catch (error) {
-            console.error("Error cargando fuentes de datos:", error);
+            this.gyroSensor.addEventListener("error", (e) =>
+              console.error("Error Gyro:", e)
+            );
+            this.absSensor.addEventListener("error", (e) =>
+              console.error("Error Abs:", e)
+            );
+
+            this.startCalibration();
+          } catch (err) {
+            console.error("Errore avvio sensori:", err);
+            window.updatePitchYaw(0, 0, { status: "Error: " + err.message });
+          }
+        },
+
+        startCalibration() {
+          if (!this.gyroSensor || !this.absSensor) return;
+          this.calibrating = true;
+          this.running = false;
+          this.biasSamples = [];
+          this.calibSamplesNeeded = this.gyroFreq * this.calibDuration;
+          this.currentMode = "absolute";
+
+          window.updatePitchYaw(0, 0, { status: "Calibrating..." });
+
+          this.gyroSensor.addEventListener("reading", this.onCalibReading);
+          this.absSensor.addEventListener("reading", this.onAbsReading);
+
+          this.gyroSensor.start();
+          this.absSensor.start();
+        },
+
+        onCalibReading() {
+          if (this.biasSamples.length < this.calibSamplesNeeded) {
+            this.biasSamples.push({
+              x: this.gyroSensor.x,
+              y: this.gyroSensor.y,
+              z: this.gyroSensor.z,
+            });
+          } else {
+            this.finishCalibration();
+          }
+        },
+
+        finishCalibration() {
+          this.calibrating = false;
+          this.gyroSensor.removeEventListener("reading", this.onCalibReading);
+
+          const avg = this.biasSamples.reduce(
+            (acc, r) => ({
+              x: acc.x + r.x,
+              y: acc.y + r.y,
+              z: acc.z + r.z,
+            }),
+            { x: 0, y: 0, z: 0 }
+          );
+          const len = this.biasSamples.length || 1;
+          this.gyroBias = { x: avg.x / len, y: avg.y / len, z: avg.z / len };
+
+          if (this.absOrientLast) {
+            const euler = this.quaternionToEuler(this.absOrientLast);
+            this.oldX = euler.yaw;
+            this.oldY = euler.pitch;
           }
 
-          // Aplicar zoom inicial
-          applyZoom(currentZoomLevel);
-           requestOrientationPermission()
-
-          
+          this.lastTime = performance.now();
+          this.gyroSensor.addEventListener("reading", this.onSensorReading);
+          this.running = true;
         },
-      });
 
+        onAbsReading() {
+          if (!this.absSensor) return;
+          this.absOrientLast = this.absSensor.quaternion;
+        },
 
-       function requestOrientationPermission() {
-        // En iOS 13+ se necesita permiso explícito
-        if (
-          typeof DeviceOrientationEvent !== "undefined" &&
-          typeof DeviceOrientationEvent.requestPermission === "function"
-        ) {
-          DeviceOrientationEvent.requestPermission()
-            .then((permissionState) => {
-              if (permissionState === "granted") {
-                permissionGranted = true;
-                startOrientationTracking();
-                console.log("Permiso de orientación concedido");
-              } else {
-                console.warn("Permiso de orientación denegado");
-                alert(
-                  "Por favor, concede permisos de orientación para usar la app"
-                );
-              }
-            })
-            .catch(console.error);
-        } else {
-          // Android y navegadores que no requieren permiso
-          permissionGranted = true;
-          startOrientationTracking();
-          console.log("Orientación habilitada automáticamente");
-        }
+        onSensorReading() {
+          if (this.calibrating) {
+            this.lastTime = performance.now();
+            return;
+          }
+
+          const now = performance.now();
+          const dt = Math.max(1e-6, (now - this.lastTime) / 1000);
+          this.lastTime = now;
+
+          let currentV = 0.05;
+          try {
+            if (typeof logFov !== "undefined") currentV = Math.exp(logFov);
+          } catch (e) {}
+
+          const inDynamicZone = currentV < this.dynamicThreshold;
+
+          if (inDynamicZone) {
+            let wx = this.gyroSensor.x - this.gyroBias.x;
+            let wz = this.gyroSensor.z - this.gyroBias.z;
+
+            let rawDeltaYaw = wz * dt;
+            let rawDeltaPitch = wx * dt;
+
+            const zoomRatio = currentV / this.dynamicThreshold;
+            const speed = Math.hypot(rawDeltaYaw, rawDeltaPitch);
+            const noiseFloor = 0.002;
+
+            let precisionGain;
+            if (speed < noiseFloor) {
+              precisionGain = 0.05;
+            } else {
+              precisionGain = Math.min(1.0, Math.pow(speed * 100, 2));
+            }
+
+            const totalFactor =
+              zoomRatio * precisionGain * this.dynamicGainMultiplier;
+
+            if (this.rawDynamicX === null) {
+              this.rawDynamicX = this.oldX;
+              this.rawDynamicY = this.oldY;
+            }
+
+            this.rawDynamicX += rawDeltaYaw * totalFactor;
+            this.rawDynamicY += rawDeltaPitch * totalFactor;
+
+            const k = this.dynamicSmoothingFactor;
+
+            this.oldX += (this.rawDynamicX - this.oldX) * k;
+            this.oldY += (this.rawDynamicY - this.oldY) * k;
+
+            this.orient.yaw = this.oldX;
+            this.orient.pitch = this.oldY;
+
+            this.updateView(currentV, "DYNAMIC");
+          } else {
+            this.rawDynamicX = null;
+            this.rawDynamicY = null;
+
+            if (this.currentMode === "absolute" && this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.orient.pitch = euler.pitch;
+              this.orient.yaw = euler.yaw;
+            } else {
+              let wx = this.gyroSensor.x - this.gyroBias.x;
+              let wz = this.gyroSensor.z - this.gyroBias.z;
+              if (Math.abs(wx) < this.gyroDeadzone) wx = 0;
+              if (Math.abs(wz) < this.gyroDeadzone) wz = 0;
+              this.orient.pitch += wx * dt;
+              this.orient.yaw += wz * dt;
+            }
+
+            this.runApplicationLogic(this.orient.pitch, this.orient.yaw, currentV);
+          }
+        },
+
+        runApplicationLogic(pitch, yaw, fov) {
+          const requiredMode = fov < this.fovThreshold ? "gyro" : "absolute";
+
+          if (requiredMode !== this.currentMode) {
+            this.transitionToMode(requiredMode);
+          }
+
+          const sensitivity = this.currentMode === "gyro" ? 0.1 : 0.5;
+
+          if (this.oldX === null || this.oldY === null) {
+            this.oldX = yaw;
+            this.oldY = pitch;
+            return;
+          }
+
+          const adjustedYaw = unwrapAngle(yaw, this.oldX);
+
+          this.oldX += (adjustedYaw - this.oldX) * sensitivity;
+          this.oldY += (pitch - this.oldY) * sensitivity;
+
+          this.updateView(fov, this.currentMode);
+        },
+
+        transitionToMode(newMode) {
+          if (newMode === "gyro" && this.currentMode === "absolute") {
+            if (this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.orient.pitch = euler.pitch;
+              this.orient.yaw = euler.yaw;
+              this.oldX = euler.yaw;
+              this.oldY = euler.pitch;
+            }
+          } else if (newMode === "absolute" && this.currentMode === "gyro") {
+            if (this.absOrientLast) {
+              const euler = this.quaternionToEuler(this.absOrientLast);
+              this.oldX = unwrapAngle(euler.yaw, this.oldX);
+              this.oldY = euler.pitch;
+            }
+          }
+          this.currentMode = newMode;
+        },
+
+        updateView(vVal, modeName) {
+          const h = this.oldX;
+          const v = this.oldY;
+
+          window.updatePitchYaw(v, h, {
+            vVal: vVal,
+            mode: modeName,
+            status: "Running",
+          });
+
+          if (!this._pendingRAF) {
+            this._pendingRAF = true;
+            requestAnimationFrame(() => {
+              updateStellariumView({ h, v });
+              this._pendingRAF = false;
+            });
+          }
+        },
+      };
+
+      // ============================
+      // Lentes + teclado
+      // ============================
+      const LENS_FOCAL_LENGTHS = [null, 40, 32, 24, 16, 10, 4];
+      const NO_LENS_BLUR = 90;
+      let currentLensLevel = 0;
+
+      function computeFovFromEyepiece(eyepieceFl) {
+        const m = FOCAL_LENGTH / eyepieceFl;
+        const proyection_const = 100;
+        let new_fov = proyection_const / m;
+        new_fov = (new_fov * Math.PI) / 180;
+        return new_fov;
       }
 
-      function startOrientationTracking() {
-        Orientation.start(engine);
-      }
+      function applyLensLevel(level) {
+        currentLensLevel = level;
 
-      // ============================================================
-      // LÓGICA DE ZOOM Y DESENFOQUE
-      // ============================================================
-      function applyZoom(level) {
-        if (!engine || ZOOM_LEVELS[level] === undefined) return;
-
-        currentZoomLevel = level;
-        const zoomConfig = ZOOM_LEVELS[level];
-        const canvas = document.getElementById("stel-canvas");
-
-        // Aplicar el Field of View
-        engine.core.fov = zoomConfig.fov;
-
-        // EFECTO VISUAL: Si es nivel 0, desenfocamos el canvas
         if (level === 0) {
-          canvas.classList.add("defocused");
-        } else {
-          canvas.classList.remove("defocused");
+          current_fov = MAX_FOV;
+          logFov = Math.log(current_fov);
+          updateStellariumFov({ fov: current_fov });
+          updateStellariumBlur({ blur: NO_LENS_BLUR });
+          return;
         }
 
-        // Actualizar indicador visual
-        document.getElementById("zoom-indicator").textContent = 
-          `Lente: ${level} (${zoomConfig.label})`;
+        const eyepieceFl = LENS_FOCAL_LENGTHS[level];
+        if (!eyepieceFl) return;
 
-        console.log(`Modo: ${zoomConfig.label}`);
+        EYEPIECE_FL = eyepieceFl;
+        const fov = computeFovFromEyepiece(eyepieceFl);
+        current_fov = fov;
+        logFov = Math.log(fov);
+        updateStellariumFov({ fov });
+        updateStellariumBlur({ blur: 0 });
       }
 
-      // Escuchar teclas del Arduino (0, 1, 2, 3, 4)
-      document.addEventListener("keydown", (event) => {
-        const key = event.key;
-
-        if (key >= "0" && key <= "4") {
-          const level = parseInt(key);
-          applyZoom(level);
-          event.preventDefault();
+      document.addEventListener("keydown", (e) => {
+        const key = e.key;
+        if (key >= "0" && key <= "6") {
+          applyLensLevel(parseInt(key, 10));
         }
       });
+
+      // ============================
+      // Inicialización
+      // ============================
+      initializeStelEngine();
+      window.Orientation.start();
+      applyLensLevel(0);
     </script>
   </body>
 </html>
