@@ -23,40 +23,16 @@
         height: 100%;
         display: block;
       }
-
-      #zoom-indicator {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 16px;
-        z-index: 1000;
-      }
     </style>
   </head>
   <body>
     <canvas id="stel-canvas"></canvas>
-    <div id="zoom-indicator">Lente: 1 (10mm)</div>
 
     <!-- Stellarium Web Engine -->
     <script src="stellarium-web-engine.js"></script>
 
     <script>
       let engine;
-      let currentZoomLevel = 1;
-
-      // Configuración de niveles de zoom fijos (Field of View en radianes)
-      // Simulando lentes de telescopio: 10mm, 20mm, 32mm, 40mm
-      const ZOOM_LEVELS = {
-        1: { fov: 1.047, label: "10mm (60°)" }, // ~60 grados - vista amplia
-        2: { fov: 0.524, label: "20mm (30°)" }, // ~30 grados - vista media
-        3: { fov: 0.175, label: "32mm (10°)" }, // ~10 grados - zoom alto
-        4: { fov: 0.0349, label: "40mm (2°)" }, // ~2 grados - zoom máximo
-      };
 
       // ============================================================
       // CONSTANTES Y VARIABLES GLOBALES DE FOV
@@ -69,6 +45,7 @@
       // VARIABLES Y CONFIGURACIÓN DE ORIENTACIÓN AVANZADA
       // ============================================================
       let currentLensLevel = 0;
+      let current_fov = MAX_FOV;
       let FOCAL_LENGTH = 1200;
       let EYEPIECE_FL = 25;
       let logFov = Math.log(MAX_FOV);
@@ -102,9 +79,6 @@
           core.observer.latitude = defaultLocation.lat * (Math.PI / 180);
           core.observer.longitude = defaultLocation.lon * (Math.PI / 180);
           core.observer.elevation = defaultLocation.elev;
-
-          // Aplicar zoom inicial
-          applyZoom(currentZoomLevel);
 
           // Dentro del index.html que sirve el puerto 8080:
           const baseUrl = "https://smalldata.ventanaceleste.com/"
@@ -495,11 +469,9 @@
       function applyLensLevel(level) {
         currentLensLevel = level;
         if (level === 0) {
-          currentZoomLevel = level;
-          const zoomConfig = ZOOM_LEVELS[level];
-          engine.core.fov = zoomConfig.fov;
-          logFov = Math.log(zoomConfig.fov);
-          updateStellariumFov({ fov: zoomConfig.fov });
+          current_fov = MAX_FOV;
+          logFov = Math.log(current_fov);
+          updateStellariumFov({ fov: current_fov });
           updateStellariumBlur({ blur: NO_LENS_BLUR });
           return;
         }
@@ -507,47 +479,24 @@
         if (!eyepieceFl) return;
         EYEPIECE_FL = eyepieceFl;
         const fov = computeFovFromEyepiece(eyepieceFl);
+        current_fov = fov;
         logFov = Math.log(fov);
         updateStellariumFov({ fov });
         updateStellariumBlur({ blur: 0 });
       }
 
       // ============================================================
-      // CONTROL DE ZOOM POR TECLAS
+      // CONTROL DE TECLAS (ARDUINO)
       // ============================================================
-      // Escuchar teclas del Arduino (simulado como teclado)
-      document.addEventListener("keydown", (event) => {
-        const key = event.key;
-
-        // Soporte para teclas 0-6 para lentes y zoom
-        if (key >= "0" && key <= "6") {
-          applyLensLevel(parseInt(key, 10));
-          event.preventDefault();
-        }
+      document.addEventListener("keydown", (e) => {
+        const key = e.key;
+        if (key >= "0" && key <= "6") applyLensLevel(parseInt(key, 10));
       });
 
-      // ============================================================
-      // FUNCIONES ADICIONALES
-      // ============================================================
-      function applyZoom(level) {
-        if (!engine || !ZOOM_LEVELS[level]) return;
 
-        currentZoomLevel = level;
-        const zoomConfig = ZOOM_LEVELS[level];
-
-        engine.core.fov = zoomConfig.fov;
-
-        // Actualizar indicador visual
-        document.getElementById(
-          "zoom-indicator"
-        ).textContent = `Lente: ${level} (${zoomConfig.label})`;
-
-        console.log(`Zoom cambiado a nivel ${level}: ${zoomConfig.label}`);
-      }
-
-
-      // Lanzamiento del sistema
-      applyZoom(currentZoomLevel);
+      // ============================
+      // Lanzamiento
+      // ============================
       window.Orientation.start();
       applyLensLevel(0);
     </script>
