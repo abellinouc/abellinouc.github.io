@@ -499,32 +499,61 @@
   updateStellariumBlur({ blur: 0 });
 }
 
-      // ============================================================
-      // CONTROL DE TECLAS (ARDUINO)
-      // ============================================================
-      document.addEventListener("keydown", (e) => {
-      const key = e.key;
-          
-      // Lentes directas
-      if (key >= "0" && key <= "7") {
-        applyLensLevel(parseInt(key, 10));
+       // ============================
+  // ZOOM SUAVE (INERCIA)
+  // ============================
+  let targetLogFov = logFov;
+  const ZOOM_SMOOTHING = 0.12; // 0..1 (más alto = más rápido)
+  let zoomAnimating = false;
+
+  function startZoomLoop() {
+    if (zoomAnimating) return;
+    zoomAnimating = true;
+
+    const step = () => {
+      const delta = targetLogFov - logFov;
+      if (Math.abs(delta) < 1e-4) {
+        logFov = targetLogFov;
+        zoomAnimating = false;
         return;
       }
-    
-      // Zoom continuo (+ / - desde Arduino)
-      if (key === "+" || key === "=") {
-        logFov -= FOV_STEP;
-      }
-    
-      if (key === "-") {
-        logFov += FOV_STEP;
-      }
-    
-      logFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), logFov));
+      logFov += delta * ZOOM_SMOOTHING;
+
       current_fov = Math.exp(logFov);
-    
       updateStellariumFov({ fov: current_fov });
-      });
+
+      requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  }
+
+  // ============================
+  // CONTROL DE TECLAS (ARDUINO)
+  // ============================
+  document.addEventListener("keydown", (e) => {
+    const key = e.key;
+
+    // Lentes directas
+    if (key >= "0" && key <= "7") {
+      applyLensLevel(parseInt(key, 10));
+      // sincroniza el objetivo para no pelear con el smoothing
+      targetLogFov = logFov;
+      return;
+    }
+
+    // Zoom continuo (+ / - desde Arduino)
+    if (key === "+" || key === "=") {
+      targetLogFov -= FOV_STEP;
+    }
+    if (key === "-") {
+      targetLogFov += FOV_STEP;
+    }
+
+    targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
+    startZoomLoop();
+  });
+
 
 
       // ============================
