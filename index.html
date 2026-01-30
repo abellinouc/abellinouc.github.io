@@ -499,13 +499,31 @@
   updateStellariumBlur({ blur: 0 });
 }
 
-
       // ============================================================
       // CONTROL DE TECLAS (ARDUINO)
       // ============================================================
       document.addEventListener("keydown", (e) => {
-        const key = e.key;
-        if (key >= "0" && key <= "7") applyLensLevel(parseInt(key, 10));
+      const key = e.key;
+          
+      // Lentes directas
+      if (key >= "0" && key <= "7") {
+        applyLensLevel(parseInt(key, 10));
+        return;
+      }
+    
+      // Zoom continuo (+ / - desde Arduino)
+      if (key === "+" || key === "=") {
+        logFov -= FOV_STEP;
+      }
+    
+      if (key === "-") {
+        logFov += FOV_STEP;
+      }
+    
+      logFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), logFov));
+      current_fov = Math.exp(logFov);
+    
+      updateStellariumFov({ fov: current_fov });
       });
 
 
