@@ -455,8 +455,10 @@
       // ============================================================
       // SISTEMA DE LENTES (FOV LEVELS)
       // ============================================================
-      const LENS_FOCAL_LENGTHS = [null, 40, 32, 24, 16, 10, 4];
+      const LENS_FOCAL_LENGTHS = [null,'eye', 40, 32, 24, 16, 10, 4];
       const NO_LENS_BLUR = 90;
+      const HUMAN_EYE_FOV = Math.PI / 3; 
+
 
       function computeFovFromEyepiece(eyepieceFl) {
         const m = FOCAL_LENGTH / eyepieceFl;
@@ -467,23 +469,36 @@
       }
 
       function applyLensLevel(level) {
-        currentLensLevel = level;
-        if (level === 0) {
-          current_fov = MAX_FOV;
-          logFov = Math.log(current_fov);
-          updateStellariumFov({ fov: current_fov });
-          updateStellariumBlur({ blur: NO_LENS_BLUR });
-          return;
-        }
-        const eyepieceFl = LENS_FOCAL_LENGTHS[level];
-        if (!eyepieceFl) return;
-        EYEPIECE_FL = eyepieceFl;
-        const fov = computeFovFromEyepiece(eyepieceFl);
-        current_fov = fov;
-        logFov = Math.log(fov);
-        updateStellariumFov({ fov });
-        updateStellariumBlur({ blur: 0 });
-      }
+  currentLensLevel = level;
+
+  if (level === 0) {
+    current_fov = MAX_FOV;
+    logFov = Math.log(current_fov);
+    updateStellariumFov({ fov: current_fov });
+    updateStellariumBlur({ blur: NO_LENS_BLUR });
+    return;
+  }
+
+  const lens = LENS_FOCAL_LENGTHS[level];
+
+  if (lens === "eye") {
+    current_fov = HUMAN_EYE_FOV;
+    logFov = Math.log(current_fov);
+    updateStellariumFov({ fov: current_fov });
+    updateStellariumBlur({ blur: 0 });
+    return;
+  }
+
+  if (!lens) return;
+
+  EYEPIECE_FL = lens;
+  const fov = computeFovFromEyepiece(lens);
+  current_fov = fov;
+  logFov = Math.log(fov);
+  updateStellariumFov({ fov });
+  updateStellariumBlur({ blur: 0 });
+}
+
 
       // ============================================================
       // CONTROL DE TECLAS (ARDUINO)
