@@ -455,7 +455,7 @@
       // ============================================================
       // SISTEMA DE LENTES (FOV LEVELS)
       // ============================================================
-      const LENS_FOCAL_LENGTHS = [null,'eye', 40, 32, 24, 16, 10, 4];
+      const LENS_FOCAL_LENGTHS = [null,'eye', 40, 32, 24, 16, 10, 4, 1];
       const NO_LENS_BLUR = 90;
       const HUMAN_EYE_FOV = Math.PI / 3; 
 
@@ -505,7 +505,7 @@
       // ============================================================
       document.addEventListener("keydown", (e) => {
         const key = e.key;
-        if (key >= "0" && key <= "6") applyLensLevel(parseInt(key, 10));
+        if (key >= "0" && key <= "7") applyLensLevel(parseInt(key, 10));
       });
 
 
