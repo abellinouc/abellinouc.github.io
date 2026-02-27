@@ -532,17 +532,24 @@
   // CONTROL DE TECLAS (ARDUINO)
   // ============================
   document.addEventListener("keydown", (e) => {
-    const key = e.key;
+    const key = e.key.toLowerCase(); // Convertimos a minúscula para detectar 'c' o 'C'
+
+    // --- NUEVA LÓGICA DE CALIBRACIÓN ---
+    if (key === "c") {
+      console.log("Iniciando calibración por comando de teclado...");
+      window.Orientation.startCalibration();
+      return; // Salimos para no procesar otras teclas
+    }
+    // -----------------------------------
 
     // Lentes directas
     if (key >= "0" && key <= "7") {
       applyLensLevel(parseInt(key, 10));
-      // sincroniza el objetivo para no pelear con el smoothing
       targetLogFov = logFov;
       return;
     }
 
-    // Zoom continuo (+ / - desde Arduino)
+    // Zoom continuo
     if (key === "+" || key === "=") {
       targetLogFov -= FOV_STEP;
     }
