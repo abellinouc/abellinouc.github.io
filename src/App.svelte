@@ -58,7 +58,7 @@
         }
 
         const script = document.createElement("script");
-        script.src = "/public/stellarium-web-engine.js";
+        script.src = "/stellarium-web-engine.js";
         script.dataset.stellarium = "1";
         script.onload = () => resolve();
         script.onerror = () => reject(new Error("Failed to load Stellarium script"));
