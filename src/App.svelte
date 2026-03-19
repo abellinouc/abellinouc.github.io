@@ -594,6 +594,7 @@
 
 <main>
   <canvas id="stel-canvas" bind:this={canvasEl}></canvas>
+  <div class="crosshair" aria-hidden="true"></div>
   <div id="calibration-overlay" bind:this={overlayEl}>
     <h2 class="pulse">CALIBRANDO SENSORES</h2>
     <p>Mantenga el dispositivo estatico...</p>
@@ -626,6 +627,39 @@
     width: 100%;
     height: 100%;
     display: block;
+  }
+
+  .crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .crosshair::before,
+  .crosshair::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+  }
+
+  .crosshair::before {
+    width: 28px;
+    height: 2px;
+    transform: translate(-50%, -50%);
+  }
+
+  .crosshair::after {
+    width: 2px;
+    height: 28px;
+    transform: translate(-50%, -50%);
   }
 
   #calibration-overlay {
