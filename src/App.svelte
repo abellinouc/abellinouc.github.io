@@ -1,8 +1,55 @@
 <script>
   import { onMount } from "svelte";
+  import DebugPanel from "./components/DebugPanel.svelte";
 
   let canvasEl;
   let overlayEl;
+  let onDebugRecalibrate = () => {};
+  let onDebugSelectLens = () => {};
+  let onDebugZoomIn = () => {};
+  let onDebugZoomOut = () => {};
+  let onDebugToggleVertical = () => {};
+  let isDebugPanelVisible = true;
+  let invertVerticalMotion = true;
+
+  const RAD_TO_DEG = 180 / Math.PI;
+
+  function createDebugState() {
+    return {
+      activeSensorMode: "absolute",
+      activeSource: "boot",
+      calibrating: false,
+      gyro: { x: 0, y: 0, z: 0 },
+      absQuat: { x: 0, y: 0, z: 0, w: 0 },
+      coords: { yaw: 0, pitch: 0, yawDeg: 0, pitchDeg: 0 },
+      fovRad: 0,
+      fovDeg: 0,
+      targetLogFov: 0,
+      currentLensLevel: 0,
+    };
+  }
+
+  let debugState = createDebugState();
+
+  function toDegrees(radians) {
+    return radians * RAD_TO_DEG;
+  }
+
+  function setDebug(partial) {
+    debugState = { ...debugState, ...partial };
+  }
+
+  function setDebugCoords(yaw, pitch) {
+    debugState = {
+      ...debugState,
+      coords: {
+        yaw,
+        pitch,
+        yawDeg: toDegrees(yaw),
+        pitchDeg: toDegrees(pitch),
+      },
+    };
+  }
 
   onMount(() => {
     let engine;
@@ -17,6 +64,13 @@
     let EYEPIECE_FL = 25;
     let logFov = Math.log(MAX_FOV);
 
+    setDebug({
+      fovRad: currentFov,
+      fovDeg: toDegrees(currentFov),
+      targetLogFov: logFov,
+      currentLensLevel,
+    });
+
     function unwrapAngle(angle, reference) {
       while (angle - reference > Math.PI) angle -= 2 * Math.PI;
       while (angle - reference < -Math.PI) angle += 2 * Math.PI;
@@ -26,7 +80,7 @@
     function updateStellariumView({ h, v }) {
       if (!engine || !engine.core || !engine.core.observer) return;
       engine.core.observer.yaw = -h;
-      engine.core.observer.pitch = -v;
+      engine.core.observer.pitch = invertVerticalMotion ? -v : v;
     }
 
     function updateStellariumFov({ fov }) {
@@ -34,6 +88,7 @@
       engine.core.fov = fov;
       const degFov = (fov * 180) / Math.PI;
       EYEPIECE_FL = (FOCAL_LENGTH * degFov) / 100;
+      setDebug({ fovRad: fov, fovDeg: degFov });
     }
 
     function updateStellariumBlur({ blur }) {
@@ -262,6 +317,7 @@
         this.onCalibReading = this.onCalibReading.bind(this);
         this.onSensorReading = this.onSensorReading.bind(this);
         this.onAbsReading = this.onAbsReading.bind(this);
+        setDebug({ activeSource: "sensor-start" });
         this.startSensors();
       },
 
@@ -322,6 +378,7 @@
         this.biasSamples = [];
         this.calibSamplesNeeded = this.gyroFreq * this.calibDuration;
         this.currentMode = "absolute";
+        setDebug({ calibrating: true, activeSource: "calibration" });
 
         this.gyroSensor.addEventListener("reading", this.onCalibReading);
         this.gyroSensor.start();
@@ -355,9 +412,17 @@
         this.lastTime = performance.now();
         this.gyroSensor.addEventListener("reading", this.onSensorReading);
         this.running = true;
+        setDebug({ calibrating: false, activeSource: "calibration-finished" });
       },
 
       onCalibReading() {
+        setDebug({
+          gyro: {
+            x: this.gyroSensor.x,
+            y: this.gyroSensor.y,
+            z: this.gyroSensor.z,
+          },
+        });
         if (this.biasSamples.length < this.calibSamplesNeeded) {
           this.biasSamples.push({
             x: this.gyroSensor.x,
@@ -372,9 +437,27 @@
       onAbsReading() {
         if (!this.absSensor) return;
         this.absOrientLast = this.absSensor.quaternion;
+        if (this.absOrientLast) {
+          setDebug({
+            absQuat: {
+              x: this.absOrientLast[0],
+              y: this.absOrientLast[1],
+              z: this.absOrientLast[2],
+              w: this.absOrientLast[3],
+            },
+          });
+        }
       },
 
       onSensorReading() {
+        setDebug({
+          gyro: {
+            x: this.gyroSensor.x,
+            y: this.gyroSensor.y,
+            z: this.gyroSensor.z,
+          },
+        });
+
         if (this.calibrating) {
           this.lastTime = performance.now();
           return;
@@ -414,6 +497,8 @@
           this.oldY += (this.rawDynamicY - this.oldY) * k;
           this.orient.yaw = this.oldX;
           this.orient.pitch = this.oldY;
+          setDebug({ activeSensorMode: "dynamic", activeSource: "gyroscope" });
+          setDebugCoords(this.oldX, this.oldY);
           this.updateView(currentV, "DYNAMIC");
         } else {
           this.rawDynamicX = null;
@@ -422,6 +507,7 @@
             const euler = this.quaternionToEuler(this.absOrientLast);
             this.orient.pitch = euler.pitch;
             this.orient.yaw = euler.yaw;
+            setDebug({ activeSource: "absolute-orientation" });
           } else {
             let wx = this.gyroSensor.x - this.gyroBias.x;
             let wz = this.gyroSensor.z - this.gyroBias.z;
@@ -429,7 +515,9 @@
             if (Math.abs(wz) < this.gyroDeadzone) wz = 0;
             this.orient.pitch += wx * dt;
             this.orient.yaw += wz * dt;
+            setDebug({ activeSource: "gyroscope" });
           }
+          setDebugCoords(this.orient.yaw, this.orient.pitch);
           this.runApplicationLogic(this.orient.pitch, this.orient.yaw, currentV);
         }
       },
@@ -437,6 +525,7 @@
       runApplicationLogic(pitch, yaw, fov) {
         const requiredMode = fov < this.fovThreshold ? "gyro" : "absolute";
         if (requiredMode !== this.currentMode) this.transitionToMode(requiredMode);
+        setDebug({ activeSensorMode: this.currentMode });
         const sensitivity = this.currentMode === "gyro" ? 0.1 : 0.5;
         if (this.oldX === null || this.oldY === null) {
           this.oldX = yaw;
@@ -502,6 +591,12 @@
         logFov = Math.log(currentFov);
         updateStellariumFov({ fov: currentFov });
         updateStellariumBlur({ blur: NO_LENS_BLUR });
+        setDebug({
+          currentLensLevel,
+          targetLogFov: logFov,
+          fovRad: currentFov,
+          fovDeg: toDegrees(currentFov),
+        });
         return;
       }
 
@@ -512,6 +607,12 @@
         logFov = Math.log(currentFov);
         updateStellariumFov({ fov: currentFov });
         updateStellariumBlur({ blur: 0 });
+        setDebug({
+          currentLensLevel,
+          targetLogFov: logFov,
+          fovRad: currentFov,
+          fovDeg: toDegrees(currentFov),
+        });
         return;
       }
 
@@ -523,6 +624,12 @@
       logFov = Math.log(fov);
       updateStellariumFov({ fov });
       updateStellariumBlur({ blur: 0 });
+      setDebug({
+        currentLensLevel,
+        targetLogFov: logFov,
+        fovRad: currentFov,
+        fovDeg: toDegrees(currentFov),
+      });
     }
 
     let targetLogFov = logFov;
@@ -538,12 +645,14 @@
         if (Math.abs(delta) < 1e-4) {
           logFov = targetLogFov;
           zoomAnimating = false;
+          setDebug({ targetLogFov });
           return;
         }
         logFov += delta * ZOOM_SMOOTHING;
 
         currentFov = Math.exp(logFov);
         updateStellariumFov({ fov: currentFov });
+        setDebug({ targetLogFov });
 
         requestAnimationFrame(step);
       };
@@ -551,29 +660,62 @@
       requestAnimationFrame(step);
     }
 
+    function applyZoomDelta(delta) {
+      targetLogFov += delta;
+      targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
+      setDebug({ targetLogFov });
+      startZoomLoop();
+    }
+
+    function triggerRecalibration() {
+      Orientation.startCalibration();
+    }
+
+    function triggerLens(level) {
+      applyLensLevel(level);
+      targetLogFov = logFov;
+      setDebug({ targetLogFov });
+    }
+
+    function triggerZoomIn() {
+      applyZoomDelta(-FOV_STEP);
+    }
+
+    function triggerZoomOut() {
+      applyZoomDelta(FOV_STEP);
+    }
+
+    function toggleVerticalMotion() {
+      invertVerticalMotion = !invertVerticalMotion;
+    }
+
+    onDebugRecalibrate = triggerRecalibration;
+    onDebugSelectLens = triggerLens;
+    onDebugZoomIn = triggerZoomIn;
+    onDebugZoomOut = triggerZoomOut;
+    onDebugToggleVertical = toggleVerticalMotion;
+
     function handleKeyDown(e) {
       const key = e.key.toLowerCase();
 
       if (key === "c") {
-        Orientation.startCalibration();
+        triggerRecalibration();
         return;
       }
 
       if (key >= "0" && key <= "7") {
-        applyLensLevel(parseInt(key, 10));
-        targetLogFov = logFov;
+        triggerLens(parseInt(key, 10));
         return;
       }
 
       if (key === "+" || key === "=") {
-        targetLogFov -= FOV_STEP;
+        triggerZoomIn();
+        return;
       }
       if (key === "-") {
-        targetLogFov += FOV_STEP;
+        triggerZoomOut();
+        return;
       }
-
-      targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
-      startZoomLoop();
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -588,17 +730,41 @@
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       Orientation.stop();
+      onDebugRecalibrate = () => {};
+      onDebugSelectLens = () => {};
+      onDebugZoomIn = () => {};
+      onDebugZoomOut = () => {};
+      onDebugToggleVertical = () => {};
     };
   });
 </script>
 
 <main>
   <canvas id="stel-canvas" bind:this={canvasEl}></canvas>
+  <button
+    id="debug-toggle"
+    type="button"
+    aria-pressed={isDebugPanelVisible}
+    on:click={() => (isDebugPanelVisible = !isDebugPanelVisible)}
+  >
+    {isDebugPanelVisible ? "Ocultar debug" : "Mostrar debug"}
+  </button>
   <div class="crosshair" aria-hidden="true"></div>
   <div id="calibration-overlay" bind:this={overlayEl}>
     <h2 class="pulse">CALIBRANDO SENSORES</h2>
     <p>Mantenga el dispositivo estatico...</p>
   </div>
+  {#if isDebugPanelVisible}
+    <DebugPanel
+      debug={debugState}
+      invertVertical={invertVerticalMotion}
+      onRecalibrate={onDebugRecalibrate}
+      onSelectLens={onDebugSelectLens}
+      onZoomIn={onDebugZoomIn}
+      onZoomOut={onDebugZoomOut}
+      onToggleVertical={onDebugToggleVertical}
+    />
+  {/if}
 </main>
 
 <style>
@@ -627,6 +793,24 @@
     width: 100%;
     height: 100%;
     display: block;
+  }
+
+  #debug-toggle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 50;
+    background: rgba(12, 16, 24, 0.82);
+    border: 1px solid rgba(0, 212, 255, 0.5);
+    color: #d8f7ff;
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font: 12px/1.2 "Consolas", "Courier New", monospace;
+  }
+
+  #debug-toggle:hover {
+    background: rgba(0, 212, 255, 0.28);
   }
 
   .crosshair {
