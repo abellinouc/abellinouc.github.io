@@ -9,6 +9,27 @@
   let onDebugZoomIn = () => {};
   let onDebugZoomOut = () => {};
   let onDebugToggleVertical = () => {};
+  
+  
+  const JULIAN_HOUR = 1 / 24;
+
+  function addHour() {
+    // Cerchiamo l'engine direttamente nell'istanza globale o variabile
+    const core = window.currentStelEngine?.core; 
+    if (core?.observer) {
+      core.observer.utc += JULIAN_HOUR;
+      console.log("Ora +1");
+    }
+  }
+
+  function subHour() {
+    const core = window.currentStelEngine?.core;
+    if (core?.observer) {
+      core.observer.utc -= JULIAN_HOUR;
+      console.log("Ora -1");
+    }
+  }
+
   let isDebugPanelVisible = true;
   let invertVerticalMotion = true;
 
@@ -133,6 +154,7 @@
         canvas: canvasEl,
         async onReady(stel) {
         engine = stel;
+        window.currentStelEngine = stel;
         const { core } = stel;
 
         const now = new Date();
@@ -280,7 +302,7 @@
       gyroFreq: 100,
       absFreq: 30,
       calibDuration: 3,
-      fovThreshold: 0.8,
+      fovThreshold: 0.2, //para que sea mas preciso de forma absoluta tambien a niveles de zoom un poco mas altos
       gyroDeadzone: 0.003,
       dynamicThreshold: 0.02,
       dynamicGainMultiplier: 10.0,
@@ -695,6 +717,7 @@
     onDebugZoomOut = triggerZoomOut;
     onDebugToggleVertical = toggleVerticalMotion;
 
+
     function handleKeyDown(e) {
       const key = e.key.toLowerCase();
 
@@ -735,6 +758,7 @@
       onDebugZoomIn = () => {};
       onDebugZoomOut = () => {};
       onDebugToggleVertical = () => {};
+      
     };
   });
 </script>
@@ -763,6 +787,8 @@
       onZoomIn={onDebugZoomIn}
       onZoomOut={onDebugZoomOut}
       onToggleVertical={onDebugToggleVertical}
+      onAddHour={addHour} 
+      onSubHour={subHour}
     />
   {/if}
 </main>
@@ -791,8 +817,10 @@
 
   #stel-canvas {
     width: 100%;
-    height: 100%;
+    height: 50%;
     display: block;
+    position: absolute;
+    top:50%;
   }
 
   #debug-toggle {
@@ -815,7 +843,7 @@
 
   .crosshair {
     position: absolute;
-    top: 50%;
+    top: 75%;
     left: 50%;
     width: 40px;
     height: 40px;

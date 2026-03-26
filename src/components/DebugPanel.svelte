@@ -6,6 +6,10 @@
   export let onZoomOut = () => {};
   export let onToggleVertical = () => {};
   export let invertVertical = true;
+  export let onAddHour;
+  export let onSubHour;
+
+  const f = (n) => n.toFixed(2);
 
   const lensLevels = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -48,6 +52,15 @@
     <p><strong>Lente:</strong> {debug.currentLensLevel ?? "-"}</p>
   </section>
 
+  <section>
+  <h4>Tiempo</h4>
+  <div class="row time-controls">
+  
+      <button type="button" on:click={onSubHour}>- 1 hora</button>
+      <button type="button" on:click={onAddHour}>+ 1 hora</button>
+  </div>
+  </section>
+
   <section class="controls">
     <h4>Controles (simula teclado)</h4>
     <div class="row">
@@ -58,6 +71,7 @@
         Vertical: {invertVertical ? "invertida" : "normal"}
       </button>
     </div>
+
     <div class="lens-grid">
       {#each lensLevels as level}
         <button type="button" on:click={() => onSelectLens(level)}>{level}</button>
@@ -70,10 +84,10 @@
   .debug-panel {
     position: absolute;
     right: 12px;
-    bottom: 12px;
+    top: 50px;
     z-index: 40;
     width: min(94vw, 460px);
-    max-height: min(70vh, 620px);
+    height: 40%;
     overflow: auto;
     background: rgba(12, 16, 24, 0.88);
     border: 1px solid rgba(0, 212, 255, 0.45);
@@ -126,5 +140,15 @@
 
   button:hover {
     background: rgba(0, 212, 255, 0.3);
+  }
+
+  .time-controls button {
+    flex: 1;
+    background: rgba(255, 166, 0, 0.1); /* Un tocco di arancio/ambra per il tempo */
+    border-color: rgba(255, 166, 0, 0.4);
+  }
+
+  .time-controls button:hover {
+    background: rgba(255, 166, 0, 0.25);
   }
 </style>
