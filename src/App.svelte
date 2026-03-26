@@ -374,11 +374,11 @@
       async startSensors() {
         try {
           await this.requestIOSPermissionIfNeeded();
-          if (!("Gyroscope" in window) || !("AbsoluteOrientationSensor" in window)) {
+          if (!("Gyroscope" in window) || !("RelativeOrientationSensor" in window)) {
             throw new Error("Required sensors not available");
           }
           this.gyroSensor = new Gyroscope({ frequency: this.gyroFreq });
-          this.absSensor = new AbsoluteOrientationSensor({ frequency: this.absFreq });
+          this.absSensor = new RelativeOrientationSensor({ frequency: this.absFreq });
           this.absSensor.addEventListener("reading", this.onAbsReading);
           this.startCalibration();
         } catch (err) {
@@ -794,10 +794,13 @@
 </main>
 
 <style>
+
+
   :global(*) {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+
   }
 
   :global(html),
@@ -807,6 +810,7 @@
     height: 100%;
     overflow: hidden;
     background: #000;
+    transform: rotate(180deg);
   }
 
   main {
