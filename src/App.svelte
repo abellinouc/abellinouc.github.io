@@ -813,6 +813,8 @@
     transform: rotate(180deg);
   }
 
+
+
   main {
     width: 100%;
     height: 100%;
@@ -917,4 +919,29 @@
       opacity: 1;
     }
   }
+
+    @media (min-width: 600px) {
+  :global(#app) {
+    transform: rotate(0deg);
+
+  }
+  #stel-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    position: absolute;
+    top:0%;
+  }
+
+  .crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 20;
+  }
+}
 </style>
