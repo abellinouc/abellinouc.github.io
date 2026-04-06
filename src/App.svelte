@@ -30,7 +30,7 @@
     }
   }
 
-  let isDebugPanelVisible = true;
+  let isDebugPanelVisible = false;
   let invertVerticalMotion = true;
 
   const RAD_TO_DEG = 180 / Math.PI;
