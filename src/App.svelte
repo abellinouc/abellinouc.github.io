@@ -126,7 +126,7 @@
   onMount(() => {
     let engine;
 
-    const CALIBRATE_ON_START = false; // Cambiar para desactivar calibración automática
+    const CALIBRATE_ON_START = true; // Cambiar para desactivar calibración automática
 
     const MAX_FOV = 3.228859;
     const MIN_FOV = 0.000005;
