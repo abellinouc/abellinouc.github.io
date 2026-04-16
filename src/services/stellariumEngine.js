@@ -1,6 +1,7 @@
-// const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
-const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
-const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
+const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
+const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
+// const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
+// const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
   lat: -33.4489,
