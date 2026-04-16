@@ -1,7 +1,6 @@
 // const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
-const PORT = 8080
-const DEFAULT_SMALLDATA_BASE_URL = `http://localhost:{PORT}/data/smalldata/`;
-const DEFAULT_BIGDATA_BASE_URL = `http://localhost:{PORT}/data/bigdata/`;
+const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
+const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
   lat: -33.4489,
