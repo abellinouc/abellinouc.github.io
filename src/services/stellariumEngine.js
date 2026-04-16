@@ -56,13 +56,13 @@ function buildDataSources(smalldataBaseUrl, bigdataBaseUrl) {
         key: "extended",
       },
     },
-    {
-      loader: "dss",
-      config: {
-        url: `${smalldataBaseUrl}surveys/gaia/v1`,
-        key: "gaia",
-      },
-    },
+    // {
+    //   loader: "dss",
+    //   config: {
+    //     url: `${smalldataBaseUrl}surveys/gaia/v1`,
+    //     key: "gaia",
+    //   },
+    // },
     {
       loader: "skycultures",
       config: {
@@ -91,7 +91,7 @@ function buildDataSources(smalldataBaseUrl, bigdataBaseUrl) {
     {
       loader: "dss",
       config: {
-        url: `${smalldataBaseUrl}surveys/dss/v1`,
+        url: `${bigdataBaseUrl}surveys/dss/v1`,
       },
     },
     {
