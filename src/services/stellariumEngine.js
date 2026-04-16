@@ -1,4 +1,7 @@
-const DEFAULT_BASE_URL = "https://smalldata.ventanaceleste.com/";
+// const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
+const PORT = 8080
+const DEFAULT_SMALLDATA_BASE_URL = `http://localhost:{PORT}/data/smalldata/`;
+const DEFAULT_BIGDATA_BASE_URL = `http://localhost:{PORT}/data/bigdata/`;
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
   lat: -33.4489,
@@ -24,85 +27,85 @@ const PLANETS = [
   "moon-normal",
 ];
 
-function buildDataSources(baseUrl) {
+function buildDataSources(smalldataBaseUrl, bigdataBaseUrl) {
   const dataSources = [
     {
       loader: "stars",
       config: {
-        url: `${baseUrl}swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars`,
+        url: `${smalldataBaseUrl}swe-data-packs/minimal/2020-09-01/minimal_2020-09-01_186e7ee2/stars`,
         key: "minimal",
       },
     },
     {
       loader: "stars",
       config: {
-        url: `${baseUrl}swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars`,
+        url: `${smalldataBaseUrl}swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/stars`,
         key: "base",
       },
     },
     {
       loader: "landscapes",
       config: {
-        url: `${baseUrl}landscapes/v1/guereins`,
+        url: `${smalldataBaseUrl}landscapes/v1/guereins`,
         key: "guereins",
       },
     },
     {
       loader: "stars",
       config: {
-        url: `${baseUrl}swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars`,
+        url: `${smalldataBaseUrl}swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/stars`,
         key: "extended",
       },
     },
     {
       loader: "dss",
       config: {
-        url: `${baseUrl}surveys/gaia/v1`,
+        url: `${smalldataBaseUrl}surveys/gaia/v1`,
         key: "gaia",
       },
     },
     {
       loader: "skycultures",
       config: {
-        url: `${baseUrl}skycultures/v3/western`,
+        url: `${smalldataBaseUrl}skycultures/v3/western`,
         key: "western",
       },
     },
     {
       loader: "dsos",
       config: {
-        url: `${baseUrl}swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/dso`,
+        url: `${smalldataBaseUrl}swe-data-packs/base/2020-09-01/base_2020-09-01_1aa210df/dso`,
       },
     },
     {
       loader: "dsos",
       config: {
-        url: `${baseUrl}swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/dso`,
+        url: `${smalldataBaseUrl}swe-data-packs/extended/2020-03-11/extended_2020-03-11_26aa5ab8/dso`,
       },
     },
     {
       loader: "milkyway",
       config: {
-        url: `${baseUrl}surveys/milkyway/v1`,
+        url: `${smalldataBaseUrl}surveys/milkyway/v1`,
       },
     },
     {
       loader: "dss",
       config: {
-        url: `${baseUrl}surveys/dss/v1`,
+        url: `${smalldataBaseUrl}surveys/dss/v1`,
       },
     },
     {
       loader: "minor_planets",
       config: {
-        url: `${baseUrl}mpc/v1/mpcorb.dat`,
+        url: `${smalldataBaseUrl}mpc/v1/mpcorb.dat`,
         key: "mpc_asteroids",
       },
     },
     {
       loader: "comets",
       config: {
-        url: `${baseUrl}mpc/v1/CometEls.txt?v=2019-12-17`,
+        url: `${smalldataBaseUrl}mpc/v1/CometEls.txt?v=2019-12-17`,
         key: "mpc_comets",
       },
     },
@@ -112,7 +115,7 @@ function buildDataSources(baseUrl) {
     dataSources.push({
       loader: "planets",
       config: {
-        url: `${baseUrl}surveys/sso/${planet}/v1`,
+        url: `${smalldataBaseUrl}surveys/sso/${planet}/v1`,
         key: planet,
       },
     });
@@ -147,7 +150,7 @@ export function ensureStellariumScript() {
   });
 }
 
-export async function configureStellariumEngine(stel, { baseUrl = DEFAULT_BASE_URL, location = DEFAULT_LOCATION } = {}) {
+export async function configureStellariumEngine(stel, { smalldataBaseUrl = DEFAULT_SMALLDATA_BASE_URL, bigdataBaseUrl = DEFAULT_BIGDATA_BASE_URL, location = DEFAULT_LOCATION } = {}) {
   const { core } = stel;
   const now = new Date();
 
@@ -156,7 +159,7 @@ export async function configureStellariumEngine(stel, { baseUrl = DEFAULT_BASE_U
   core.observer.longitude = location.lon * (Math.PI / 180);
   core.observer.elevation = location.elev;
 
-  const dataSourcePromises = buildDataSources(baseUrl).map(({ loader, config }) => {
+  const dataSourcePromises = buildDataSources(smalldataBaseUrl, bigdataBaseUrl).map(({ loader, config }) => {
     return core[loader].addDataSource(config);
   });
 
@@ -182,7 +185,8 @@ export async function configureStellariumEngine(stel, { baseUrl = DEFAULT_BASE_U
 export async function initializeStellariumEngine({
   canvas,
   wasmFile = "/stellarium-web-engine.wasm",
-  baseUrl = DEFAULT_BASE_URL,
+  smalldataBaseUrl = DEFAULT_SMALLDATA_BASE_URL,
+  bigdataBaseUrl = DEFAULT_BIGDATA_BASE_URL,
   location = DEFAULT_LOCATION,
   onReady = () => {},
   onError = () => {},
@@ -200,7 +204,7 @@ export async function initializeStellariumEngine({
       async onReady(stel) {
         try {
           window.currentStelEngine = stel;
-          await configureStellariumEngine(stel, { baseUrl, location });
+          await configureStellariumEngine(stel, { smalldataBaseUrl, bigdataBaseUrl, location });
           await onReady(stel);
           resolve(stel);
         } catch (error) {
