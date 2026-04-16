@@ -78,6 +78,14 @@ Telescope.js se deja fuera de foco por ahora (se analizara despues).
 - Agregar capa de configuracion central para endpoints y umbrales.
 - Incorporar manejo de errores visible para usuario (estado de carga, error de red, sensores no soportados).
 
+## Ejes de modularizacion obligatorios
+- Motor de Stellarium: inicializacion, entrypoint del engine y carga de datos del cielo.
+- Telescope: datos persistentes de orientacion, distancia focal, apertura y magnificacion.
+- Lectura de sensores: principalmente orientacion, calibracion y fusion de datos.
+- Comunicacion con Arduino: intercambio de estado y control para la version offline simple.
+
+La modularizacion futura debe respetar estos cuatro ejes como fronteras funcionales, no solo como carpetas tecnicas.
+
 ## Estado para la siguiente fase
 - Contexto base completado sin profundizar en Telescope.js.
 - Siguiente paso natural: analizar Telescope.js e integrar su rol dentro de la arquitectura modular propuesta.

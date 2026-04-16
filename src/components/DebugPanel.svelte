@@ -5,6 +5,7 @@
   export let onZoomIn = () => {};
   export let onZoomOut = () => {};
   export let onToggleVertical = () => {};
+  export let onCancelCalibration = () => {};
   export let invertVertical = true;
   export let onAddHour;
   export let onSubHour;
@@ -22,9 +23,17 @@
   <h3>Debug panel</h3>
 
   <section>
-    <p><strong>Sensor activo:</strong> {debug.activeSensorMode || "-"}</p>
-    <p><strong>Fuente:</strong> {debug.activeSource || "-"}</p>
-    <p><strong>Calibrando:</strong> {debug.calibrating ? "si" : "no"}</p>
+      <div class = "row">
+        <div>
+          <p><strong>Sensor activo:</strong> {debug.activeSensorMode || "-"}</p>
+          <p><strong>Fuente:</strong> {debug.activeSource || "-"}</p>
+          <p><strong>Calibrando:</strong> {debug.calibrating ? "si" : "no"}</p>
+        </div>
+        <div>
+          <button type="button" on:click={onCancelCalibration}>Cancelar calibración</button>
+        </div>
+      </div>
+
   </section>
 
   <section>
@@ -38,13 +47,28 @@
       x {fmt(debug.absQuat?.x)} | y {fmt(debug.absQuat?.y)} | z {fmt(debug.absQuat?.z)} | w {fmt(debug.absQuat?.w)}
     </p>
   </section>
-
   <section>
-    <h4>Conversion a coordenadas</h4>
-    <p><strong>Yaw:</strong> {fmt(debug.coords?.yaw)} rad | {fmt(debug.coords?.yawDeg, 2)} deg</p>
-    <p><strong>Pitch:</strong> {fmt(debug.coords?.pitch)} rad | {fmt(debug.coords?.pitchDeg, 2)} deg</p>
+  <div class="row">
+    <div>
+      <h4>Conversion a coordenadas</h4>
+      <p><strong>Yaw:</strong> {fmt(debug.coords?.yaw)} rad | {fmt(debug.coords?.yawDeg, 2)} deg</p>
+      <p><strong>Pitch:</strong> {fmt(debug.coords?.pitch)} rad | {fmt(debug.coords?.pitchDeg, 2)} deg</p>
+    </div>
+    <div>
+      <h4> Telescope </h4>
+      <!-- <p><strong>Name:</strong> {debug.telescope?.name || "-"}</p>
+      <p><strong>Type:</strong> {debug.telescope?.type || "-"}</p> -->
+      <p><strong>Aperture:</strong> {fmt(debug.telescope?.aperture)}</p>
+      <p><strong>Focal length:</strong> {fmt(debug.telescope?.focalLength)}</p>
+      <p><strong>Eyepiece focal length:</strong> {fmt(debug.telescope?.eyepieceFocalLength)}</p>
+      <p><strong>Magnification:</strong> {fmt(debug.telescope?.magnification)}</p>
+      <!-- <p><strong>RA:</strong> {fmt(debug.telescope?.ra)}</p>
+      <p><strong>DEC:</strong> {fmt(debug.telescope?.dec)}</p>
+      <p><strong>ALT:</strong> {fmt(debug.telescope?.alt)}</p>
+      <p><strong>AZ:</strong> {fmt(debug.telescope?.az)}</p> -->
+    </div>
+  </div>
   </section>
-
   <section>
     <h4>FOV</h4>
     <p><strong>Actual:</strong> {fmt(debug.fovRad)} rad | {fmt(debug.fovDeg, 2)} deg</p>
@@ -53,9 +77,9 @@
   </section>
 
   <section>
-  <h4>Tiempo</h4>
+  <h4>Tiempo Stellarium</h4>
+  <p><strong>JDN:</strong> {debug.engineTime?.jdn || "-"}</p>
   <div class="row time-controls">
-  
       <button type="button" on:click={onSubHour}>- 1 hora</button>
       <button type="button" on:click={onAddHour}>+ 1 hora</button>
   </div>

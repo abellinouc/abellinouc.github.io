@@ -1,11 +1,11 @@
-class Telescope {
-    constructor( name, type, aperture, focalLength ) {
+export default class Telescope {
+    constructor(name, type, aperture, focalLength) {
         this.name = name;
         this.type = type;
         this.aperture = aperture;
         this.focalLength = focalLength;
 
-        this.eyepieceFocalLenght = null;
+        this.eyepieceFocalLength = null;
         this.magnification = null;
 
         this.ra = null;
@@ -14,21 +14,17 @@ class Telescope {
         this.az = null;
     }
 
-    // Sets the eyepiece focal length and calculates the magnification
-    // simulates the effect of changing the eyepiece on the telescope
-    setEyepieceFocalLength( eyepieceFocalLenght ) {
-        this.eyepieceFocalLenght = eyepieceFocalLenght;
-        this.magnification = this.focalLength / this.eyepieceFocalLenght;
+    setEyepieceFocalLength(eyepieceFocalLength) {
+        this.eyepieceFocalLength = eyepieceFocalLength;
+        this.magnification = this.focalLength / this.eyepieceFocalLength;
     }
 
-    // Sets the telescope's position in the sky using right ascension and declination
-    setPosition( ra, dec ) {
+    setPosition(ra, dec) {
         this.ra = ra;
         this.dec = dec;
     }
 
-    // Sets the telescope's position in the sky using altitude and azimuth
-    setAltAz( alt, az ) {
+    setAltAz(alt, az) {
         this.alt = alt;
         this.az = az;
     }
@@ -40,4 +36,14 @@ class Telescope {
     getAltAz() {
         return { alt: this.alt, az: this.az };
     }
+}
+
+export function computeFovFromEyepiece(telescope, eyepieceFocalLength, projectionConstant = 100) {
+    let newFov = projectionConstant / telescope.magnification;
+    newFov = (newFov * Math.PI) / 180;
+    return newFov;
+}
+
+export function createDefaultTelescope() {
+    return new Telescope("Ventana Celeste", "reflector", 1200, 25);
 }
