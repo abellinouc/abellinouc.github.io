@@ -6,6 +6,7 @@
   export let onZoomOut = () => {};
   export let onToggleVertical = () => {};
   export let onCancelCalibration = () => {};
+  export let onSimulateCardChange = () => {};
   export let invertVertical = true;
   export let onAddHour;
   export let onSubHour;
@@ -13,6 +14,7 @@
   const f = (n) => n.toFixed(2);
 
   const lensLevels = [0, 1, 2, 3, 4, 5, 6, 7];
+  const simulatedCardLevels = [1, 2, 3, 4];
 
   function fmt(value, digits = 4) {
     return Number.isFinite(value) ? value.toFixed(digits) : "-";
@@ -101,6 +103,19 @@
         <button type="button" on:click={() => onSelectLens(level)}>{level}</button>
       {/each}
     </div>
+
+    <h4>Tarjetas físicas</h4>
+    <p>Simula cuatro niveles de cambio físico de tarjeta.</p>
+    <div class="card-grid">
+      {#each simulatedCardLevels as level}
+        <button type="button" on:click={() => onSimulateCardChange(level)}>
+          Tarjeta {level}
+        </button>
+      {/each}
+    </div>
+    <button class="card-remove-btn" type="button" on:click={() => onSimulateCardChange(0)}>
+      Retirar tarjeta
+    </button>
   </section>
 </aside>
 
@@ -150,6 +165,24 @@
     display: grid;
     grid-template-columns: repeat(8, minmax(32px, 1fr));
     gap: 6px;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .card-remove-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: rgba(255, 80, 80, 0.14);
+    border-color: rgba(255, 80, 80, 0.5);
+  }
+
+  .card-remove-btn:hover {
+    background: rgba(255, 80, 80, 0.3);
   }
 
   button {

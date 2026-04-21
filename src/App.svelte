@@ -10,6 +10,7 @@
   let onDebugRecalibrate = () => {};
   let onDebugCancelCalibration = () => {};
   let onDebugSelectLens = () => {};
+  let onDebugSimulateCardChange = () => {};
   let onDebugZoomIn = () => {};
   let onDebugZoomOut = () => {};
   let onDebugToggleVertical = () => {};
@@ -276,6 +277,10 @@
       setDebug({ targetLogFov });
     }
 
+    function triggerCardChange(level) {
+      triggerLens(level);
+    }
+
     function triggerZoomIn() {
       applyZoomDelta(-FOV_STEP);
     }
@@ -302,6 +307,7 @@
     onDebugRecalibrate = triggerRecalibration;
     onDebugCancelCalibration = triggerCancelCalibration;
     onDebugSelectLens = triggerLens;
+    onDebugSimulateCardChange = triggerCardChange;
     onDebugZoomIn = triggerZoomIn;
     onDebugZoomOut = triggerZoomOut;
     onDebugToggleVertical = toggleVerticalMotion;
@@ -349,6 +355,7 @@
       onDebugRecalibrate = () => {};
       onDebugCancelCalibration = () => {};
       onDebugSelectLens = () => {};
+      onDebugSimulateCardChange = () => {};
       onDebugZoomIn = () => {};
       onDebugZoomOut = () => {};
       onDebugToggleVertical = () => {};
@@ -379,6 +386,7 @@
       onRecalibrate={onDebugRecalibrate}
       onCancelCalibration={onDebugCancelCalibration}
       onSelectLens={onDebugSelectLens}
+      onSimulateCardChange={onDebugSimulateCardChange}
       onZoomIn={onDebugZoomIn}
       onZoomOut={onDebugZoomOut}
       onToggleVertical={onDebugToggleVertical}
