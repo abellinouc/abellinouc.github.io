@@ -80,7 +80,7 @@
 
   <section>
   <h4>Tiempo Stellarium</h4>
-  <p><strong>JDN:</strong> {debug.engineTime?.jdn || "-"}</p>
+  <p><strong>MJD:</strong> {debug.engineTime?.jdn || "-"}</p>
   <div class="row time-controls">
       <button type="button" on:click={onSubHour}>- 1 hora</button>
       <button type="button" on:click={onAddHour}>+ 1 hora</button>

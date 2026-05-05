@@ -190,6 +190,7 @@
           fovDeg: toDegrees(currentFov),
           telescope: telescopeSnapshot(),
         });
+        // resetZoomIdleTimer();
         return;
       }
 
@@ -208,6 +209,7 @@
           fovDeg: toDegrees(currentFov),
           telescope: telescopeSnapshot(),
         });
+        resetZoomIdleTimer();
         return;
       }
 
@@ -226,11 +228,14 @@
         fovDeg: toDegrees(currentFov),
         telescope: telescopeSnapshot(),
       });
+      resetZoomIdleTimer();
     }
 
     let targetLogFov = logFov;
     const ZOOM_SMOOTHING = 0.12;
     let zoomAnimating = false;
+    const ZOOM_IDLE_TIMEOUT = 30000; // 30 segundos
+    let zoomIdleTimer = null;
 
     function startZoomLoop() {
       if (zoomAnimating) return;
@@ -256,11 +261,23 @@
       requestAnimationFrame(step);
     }
 
+    function resetZoomIdleTimer() {
+      if (zoomIdleTimer) {
+        clearTimeout(zoomIdleTimer);
+      }
+      zoomIdleTimer = setTimeout(() => {
+        applyLensLevel(1);
+        targetLogFov = logFov;
+        setDebug({ targetLogFov });
+      }, ZOOM_IDLE_TIMEOUT);
+    }
+
     function applyZoomDelta(delta) {
       targetLogFov += delta;
       targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
       setDebug({ targetLogFov });
       startZoomLoop();
+      resetZoomIdleTimer();
     }
 
     function triggerRecalibration() {
@@ -352,6 +369,9 @@
       window.removeEventListener("keydown", handleKeyDown);
       orientation.stop();
       clearInterval(timeUpdateInterval);
+      if (zoomIdleTimer) {
+        clearTimeout(zoomIdleTimer);
+      }
       onDebugRecalibrate = () => {};
       onDebugCancelCalibration = () => {};
       onDebugSelectLens = () => {};

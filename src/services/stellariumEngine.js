@@ -1,15 +1,14 @@
-// const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
-// const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
-const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
-const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
+const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
+const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
+// const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
+// const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
-  lat: -33.4489,
+  lat: -23.4489,
   lon: -70.6693,
   elev: 570,
   mag: 17.13,
 };
-
 const PLANETS = [
   "moon",
   "sun",
@@ -152,9 +151,11 @@ export function ensureStellariumScript() {
 
 export async function configureStellariumEngine(stel, { smalldataBaseUrl = DEFAULT_SMALLDATA_BASE_URL, bigdataBaseUrl = DEFAULT_BIGDATA_BASE_URL, location = DEFAULT_LOCATION } = {}) {
   const { core } = stel;
-  const now = new Date();
+  // const now = new Date();
 
-  core.observer.utc = now.getTime() / 86400000 + 2440587.5;
+  core.observer.utc = 61398.17709; // In MJD (Modified Julian Date) for December 24, 2026, 01:15:00 GMT
+
+  // core.observer.utc = now.getTime() / 86400000 + 2440587.5;
   core.observer.latitude = location.lat * (Math.PI / 180);
   core.observer.longitude = location.lon * (Math.PI / 180);
   core.observer.elevation = location.elev;
