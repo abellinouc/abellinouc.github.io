@@ -13,7 +13,7 @@
 
   const f = (n) => n.toFixed(2);
 
-  const lensLevels = [1, 2, 3, 4, 5, 6, 7, 8];
+  const lensLevels = [0, 1, 2, 3, 4, 5, 6, 7];
   const simulatedCardLevels = [1, 2, 3, 4];
 
   function fmt(value, digits = 4) {
@@ -75,7 +75,7 @@
     <h4>FOV</h4>
     <p><strong>Actual:</strong> {fmt(debug.fovRad)} rad | {fmt(debug.fovDeg, 2)} deg</p>
     <p><strong>Target log:</strong> {fmt(debug.targetLogFov)}</p>
-    <p><strong>ID lente:</strong> {debug.currentLensLevel ?? "-"}</p>
+    <p><strong>Lente:</strong> {debug.currentLensLevel ?? "-"}</p>
   </section>
 
   <section>
