@@ -151,6 +151,7 @@
       if (!engine || !engine.core || !engine.core.observer) return;
       engine.core.observer.yaw = -h;
       engine.core.observer.pitch = invertVerticalMotion ? -v : v;
+      registerZoomMotion(h, v);
     }
 
     function updateStellariumFov({ fov }) {
@@ -235,7 +236,9 @@
     const ZOOM_SMOOTHING = 0.12;
     let zoomAnimating = false;
     const ZOOM_IDLE_TIMEOUT = 30000; // 30 segundos
+    const ZOOM_MOTION_THRESHOLD = 0.015;
     let zoomIdleTimer = null;
+    let lastZoomMotion = null;
 
     function startZoomLoop() {
       if (zoomAnimating) return;
@@ -261,15 +264,38 @@
       requestAnimationFrame(step);
     }
 
-    function resetZoomIdleTimer() {
+    function touchZoomActivity() {
       if (zoomIdleTimer) {
         clearTimeout(zoomIdleTimer);
       }
+
       zoomIdleTimer = setTimeout(() => {
-        applyLensLevel(1);
+        applyLensLevel(0);
         targetLogFov = logFov;
         setDebug({ targetLogFov });
       }, ZOOM_IDLE_TIMEOUT);
+    }
+
+    function resetZoomIdleTimer() {
+      touchZoomActivity();
+    }
+
+    function registerZoomMotion(h, v) {
+      if (!Number.isFinite(h) || !Number.isFinite(v)) return;
+
+      if (!lastZoomMotion) {
+        lastZoomMotion = { h, v };
+        return;
+      }
+
+      const deltaH = h - lastZoomMotion.h;
+      const deltaV = v - lastZoomMotion.v;
+      const motionDistance = Math.hypot(deltaH, deltaV);
+
+      if (motionDistance < ZOOM_MOTION_THRESHOLD) return;
+
+      lastZoomMotion = { h, v };
+      touchZoomActivity();
     }
 
     function applyZoomDelta(delta) {
@@ -372,6 +398,7 @@
       if (zoomIdleTimer) {
         clearTimeout(zoomIdleTimer);
       }
+      lastZoomMotion = null;
       onDebugRecalibrate = () => {};
       onDebugCancelCalibration = () => {};
       onDebugSelectLens = () => {};
