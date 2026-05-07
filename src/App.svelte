@@ -132,7 +132,16 @@
     const MAX_FOV = 3.228859;
     const MIN_FOV = 0.000005;
     const FOV_STEP = 0.1;
-    const LENS_FOCAL_LENGTHS = [null, "eye", 40, 20, 10, 4, 2, 1/4];
+    const LENS_FOCAL_LENGTHS = {
+      1: "eye",
+      2: 40,
+      3: 20,
+      4: 10,
+      5: "eye",
+      6: 40,
+      7: 20,
+      8: 10,
+    };
     const NO_LENS_BLUR = 90;
     const HUMAN_EYE_FOV = Math.PI / 3;
 
@@ -363,7 +372,7 @@
         return;
       }
 
-      if (key >= "0" && key <= "7") {
+      if (key >= "1" && key <= "8") {
         triggerLens(parseInt(key, 10));
         return;
       }
