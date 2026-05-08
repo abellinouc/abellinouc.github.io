@@ -4,7 +4,7 @@ const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
 const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
-  lat: 10.4489,
+  lat: 5.4489,
   lon: -70.6693,
   elev: 2000,
   mag: 17.13,
