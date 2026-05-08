@@ -135,12 +135,12 @@
     const LENS_FOCAL_LENGTHS = {
       1: "eye",
       2: 40,
-      3: 20,
-      4: 10,
+      3: 6,
+      4: 0.5,
       5: "eye",
       6: 40,
-      7: 20,
-      8: 10,
+      7: 6,
+      8: 0.5,
     };
     const NO_LENS_BLUR = 90;
     const HUMAN_EYE_FOV = Math.PI / 3;
