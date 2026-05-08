@@ -244,7 +244,7 @@
     let targetLogFov = logFov;
     const ZOOM_SMOOTHING = 0.12;
     let zoomAnimating = false;
-    const ZOOM_IDLE_TIMEOUT = 60000; // 60 segundos
+    const ZOOM_IDLE_TIMEOUT = 99999999999; // set high by now
     const ZOOM_MOTION_THRESHOLD = 0.015;
     let zoomIdleTimer = null;
     let lastZoomMotion = null;
