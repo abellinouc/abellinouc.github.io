@@ -1,12 +1,12 @@
-const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
-const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
-// const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
-// const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
+// const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
+// const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
+const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
+const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
   lat: -23.4489,
   lon: -70.6693,
-  elev: 570,
+  elev: 2000,
   mag: 17.13,
 };
 const PLANETS = [
