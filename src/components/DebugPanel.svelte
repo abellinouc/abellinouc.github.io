@@ -30,6 +30,7 @@
           <p><strong>Sensor activo:</strong> {debug.activeSensorMode || "-"}</p>
           <p><strong>Fuente:</strong> {debug.activeSource || "-"}</p>
           <p><strong>Calibrando:</strong> {debug.calibrating ? "si" : "no"}</p>
+          <p><strong>Entorno:</strong> {debug.env || "-"}</p>
         </div>
         <div>
           <button type="button" on:click={onCancelCalibration}>Cancelar calibración</button>

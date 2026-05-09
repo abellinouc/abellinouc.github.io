@@ -1,12 +1,8 @@
-// const DEFAULT_SMALLDATA_BASE_URL = "https://smalldata.ventanaceleste.com/";
-// const DEFAULT_BIGDATA_BASE_URL = "https://bigdata.ventanaceleste.com/";
-const DEFAULT_SMALLDATA_BASE_URL = '/data/smalldata/';
-const DEFAULT_BIGDATA_BASE_URL = '/data/bigdata/';
 const DEFAULT_LOCATION = {
   cityName: "Santiago",
-  lat: -17.4489,
-  lon: -70.6693,
-  elev: 2000,
+  lat: -33.45,
+  lon: -70.67,
+  elev: 520,
   mag: 17.13,
 };
 const PLANETS = [
@@ -149,11 +145,11 @@ export function ensureStellariumScript() {
   });
 }
 
-export async function configureStellariumEngine(stel, { smalldataBaseUrl = DEFAULT_SMALLDATA_BASE_URL, bigdataBaseUrl = DEFAULT_BIGDATA_BASE_URL, location = DEFAULT_LOCATION } = {}) {
+export async function configureStellariumEngine(stel, { smalldataBaseUrl, bigdataBaseUrl, location = DEFAULT_LOCATION } = {}) {
   const { core } = stel;
   // const now = new Date();
 
-  core.observer.utc = 61398.17709; // In MJD (Modified Julian Date) for December 24, 2026, 01:15:00 GMT
+  core.observer.utc = 66295.97917; // In MJD (Modified Julian Date) for May 21, 2040, 23:30:00 GMT (= 19:30 Santiago local, UTC-4)
 
   // core.observer.utc = now.getTime() / 86400000 + 2440587.5;
   core.observer.latitude = location.lat * (Math.PI / 180);
@@ -178,7 +174,7 @@ export async function configureStellariumEngine(stel, { smalldataBaseUrl = DEFAU
   core.constellations.labels_visible = true;
   core.star_relative_scale = 1.0;
   core.stars.label_amount = 3.0;
-  core.exposure_scale = 2;
+  core.exposure_scale = 1;
 
   return stel;
 }
@@ -186,8 +182,8 @@ export async function configureStellariumEngine(stel, { smalldataBaseUrl = DEFAU
 export async function initializeStellariumEngine({
   canvas,
   wasmFile = "/stellarium-web-engine.wasm",
-  smalldataBaseUrl = DEFAULT_SMALLDATA_BASE_URL,
-  bigdataBaseUrl = DEFAULT_BIGDATA_BASE_URL,
+  smalldataBaseUrl,
+  bigdataBaseUrl,
   location = DEFAULT_LOCATION,
   onReady = () => {},
   onError = () => {},

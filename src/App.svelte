@@ -4,6 +4,7 @@
   import Telescope, { computeFovFromEyepiece } from "./Telescope.js";
   import { initializeStellariumEngine } from "./services/stellariumEngine.js";
   import { createOrientationController } from "./services/orientationController.js";
+  import { loadConfig } from "./config";
 
   let canvasEl;
   let overlayEl;
@@ -34,8 +35,9 @@
     }
   }
 
-  let isDebugPanelVisible = false;
+  let isDebugPanelVisible = false; // será actualizado según config
   let invertVerticalMotion = true;
+  let appConfig = null;
   const telescope = new Telescope("Prototipo", "refractor", 200, 1200);
 
   const RAD_TO_DEG = 180 / Math.PI;
@@ -97,6 +99,7 @@
       currentLensLevel: 0,
       telescope: telescopeSnapshot(),
       engineTime: getEngineTime(),
+      env: "-",
     };
   }
 
@@ -124,10 +127,20 @@
     };
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // Load environment-specific configuration
+    appConfig = await loadConfig();
+
+    console.log("Configuración cargada en App:", appConfig);
+
+    debugState.env = appConfig.env;
+
+    isDebugPanelVisible = appConfig.enableDebugPanel;
+
     let engine;
 
-    const CALIBRATE_ON_START = true; // Cambiar para desactivar calibración automática
+    const CALIBRATE_ON_START = appConfig.calibrateOnStart;
+    const ZOOM_IDLE_TIMEOUT = appConfig.enableZoomBlurTimer ? 9999999 : 999999999; // very high if disabled, normal if enabled
 
     const MAX_FOV = 3.228859;
     const MIN_FOV = 0.000005;
@@ -142,7 +155,7 @@
       7: 6,
       8: 0.5,
     };
-    const NO_LENS_BLUR = 90;
+    const NO_LENS_BLUR = 5;
     const HUMAN_EYE_FOV = Math.PI / 3;
 
     let currentLensLevel = 0;
@@ -178,6 +191,8 @@
     async function initEngine() {
       await initializeStellariumEngine({
         canvas: canvasEl,
+        smalldataBaseUrl: appConfig.smallDataPath,
+        bigdataBaseUrl: appConfig.bigDataPath,
         onReady(stel) {
           engine = stel;
         },
@@ -244,7 +259,6 @@
     let targetLogFov = logFov;
     const ZOOM_SMOOTHING = 0.12;
     let zoomAnimating = false;
-    const ZOOM_IDLE_TIMEOUT = 9999999; // set high by now
     const ZOOM_MOTION_THRESHOLD = 0.015;
     let zoomIdleTimer = null;
     let lastZoomMotion = null;
@@ -312,7 +326,12 @@
       targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
       setDebug({ targetLogFov });
       startZoomLoop();
-      resetZoomIdleTimer();
+
+      if (zoomIdleTimer) {
+        clearTimeout(zoomIdleTimer);
+        zoomIdleTimer = null;
+      }
+      updateStellariumBlur({ blur: 0 });
     }
 
     function triggerRecalibration() {
@@ -394,7 +413,8 @@
     });
 
     orientation.start( CALIBRATE_ON_START );
-    applyLensLevel(0);
+    const initialLensLevel = appConfig.calibrateOnStart ? 0 : 1;
+    applyLensLevel(initialLensLevel);
 
     const timeUpdateInterval = setInterval(() => {
       setDebug({ engineTime: getEngineTime() });
