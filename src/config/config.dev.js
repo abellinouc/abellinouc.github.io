@@ -6,5 +6,5 @@ export default {
   // bigDataPath: '/data/bigdata',
   calibrateOnStart: true,
   enableZoomBlurTimer: true,
-  enableDebugPanel: true,
+  enableDebugPanel: false,
 };
