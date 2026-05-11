@@ -15,16 +15,21 @@ export function createOrientationController({
   const state = {
     gyroFreq: 100,
     absFreq: 30,
-    calibDuration: 3,
+    calibDuration: 1,
     fovThreshold: 0.2,
     gyroDeadzone: 0.003,
-    dynamicThreshold: 0.02,
+    dynamicThreshold: 0.06,
     dynamicGainMultiplier: 10.0,
     dynamicSmoothingFactor: 0.15,
     gyroSensor: null,
     absSensor: null,
     running: false,
     calibrating: false,
+    preCalibrating: false,
+    sensorsStarted: false,
+    preCalibStatus: "moving",
+    preCalibCountdown: 2,
+    preCalibLastTime: 0,
     gyroBias: { x: 0, y: 0, z: 0 },
     biasSamples: [],
     calibSamplesNeeded: 300,
@@ -91,6 +96,13 @@ export function createOrientationController({
     const len = state.biasSamples.length || 1;
     state.gyroBias = { x: avg.x / len, y: avg.y / len, z: avg.z / len };
 
+    try {
+      localStorage.setItem("astrovis_gyro_bias", JSON.stringify(state.gyroBias));
+      console.log("Saved gyro bias to local storage:", state.gyroBias);
+    } catch (e) {
+      console.error("Failed to save gyro bias to local storage", e);
+    }
+
     if (state.absOrientLast) {
       const euler = quaternionToEuler(state.absOrientLast);
       state.oldX = euler.yaw;
@@ -126,6 +138,39 @@ export function createOrientationController({
     } else {
       finishCalibration();
     }
+  }
+
+  function onPreCalibReading() {
+    const speed = Math.hypot(state.gyroSensor.x, state.gyroSensor.y, state.gyroSensor.z);
+    
+    const isMoving = speed > 0.05;
+    const now = performance.now();
+    
+    if (isMoving) {
+        state.preCalibStatus = "moving";
+        state.preCalibCountdown = 2;
+        state.preCalibLastTime = now;
+    } else {
+        state.preCalibStatus = "countdown";
+        if (now - state.preCalibLastTime >= 1000) {
+            state.preCalibLastTime = now;
+            state.preCalibCountdown -= 1;
+            
+            if (state.preCalibCountdown < 0) {
+                state.preCalibrating = false;
+                state.gyroSensor.removeEventListener("reading", onPreCalibReading);
+                startActualCalibration();
+                return;
+            }
+        }
+    }
+    
+    emitDebug({ 
+        preCalibrating: true, 
+        preCalibStatus: state.preCalibStatus, 
+        preCalibCountdown: state.preCalibCountdown,
+        activeSource: "pre-calibration" 
+    });
   }
 
   function onAbsReading() {
@@ -214,13 +259,25 @@ export function createOrientationController({
     if (inDynamicZone) {
       const wx = state.gyroSensor.x - state.gyroBias.x;
       const wz = state.gyroSensor.z - state.gyroBias.z;
-      const rawDeltaYaw = wz * dt;
-      const rawDeltaPitch = wx * dt;
-      const zoomRatio = currentV / state.dynamicThreshold;
-      const speed = Math.hypot(rawDeltaYaw, rawDeltaPitch);
-      const noiseFloor = 0.002;
-      const precisionGain = speed < noiseFloor ? 0.05 : Math.min(1.0, Math.pow(speed * 100, 2));
-      const totalFactor = zoomRatio * precisionGain * state.dynamicGainMultiplier;
+      let effWx = wx;
+      let effWz = wz;
+      if (Math.abs(effWx) < state.gyroDeadzone) effWx = 0;
+      if (Math.abs(effWz) < state.gyroDeadzone) effWz = 0;
+
+      const rawDeltaYaw = effWz * dt;
+      const rawDeltaPitch = effWx * dt;
+      
+      const rawZoomRatio = currentV / state.dynamicThreshold;
+      let zoomRatio = Math.pow(rawZoomRatio, 1.8);
+      
+      const thresholdV = 0.0030;
+      const minFactor = Math.pow(thresholdV / state.dynamicThreshold, 1.8);
+      
+      if (currentV < thresholdV) {
+        zoomRatio = minFactor * (currentV / thresholdV);
+      }
+      
+      const totalFactor = zoomRatio;
 
       if (state.rawDynamicX === null) {
         state.rawDynamicX = state.oldX;
@@ -235,6 +292,34 @@ export function createOrientationController({
       state.oldY += (state.rawDynamicY - state.oldY) * k;
       state.orient.yaw = state.oldX;
       state.orient.pitch = state.oldY;
+      
+      if (state.lastV === undefined) state.lastV = currentV;
+      const deltaV = currentV - state.lastV;
+      if (deltaV > 0.000001 && state.absOrientLast && state.lastV < state.fovThreshold) {
+        const euler = quaternionToEuler(state.absOrientLast);
+        const f = (v) => Math.max(0, 1.0 - Math.pow(v / state.fovThreshold, 2.5));
+        const fLast = f(state.lastV);
+        const fCurr = f(currentV);
+        
+        let progress = 0;
+        if (fLast > 0.0001) {
+            progress = 1.0 - (fCurr / fLast);
+        } else {
+            progress = 1.0;
+        }
+        progress = Math.max(0, Math.min(1, progress));
+        
+        state.orient.pitch += (euler.pitch - state.orient.pitch) * progress;
+        const targetYaw = unwrapAngle(euler.yaw, state.orient.yaw);
+        state.orient.yaw += (targetYaw - state.orient.yaw) * progress;
+        
+        state.oldX = state.orient.yaw;
+        state.oldY = state.orient.pitch;
+        state.rawDynamicX = state.orient.yaw;
+        state.rawDynamicY = state.orient.pitch;
+      }
+      state.lastV = currentV;
+
       emitDebug({ activeSensorMode: "dynamic", activeSource: "gyroscope" });
       emitCoords(state.oldX, state.oldY);
       updateView();
@@ -256,6 +341,29 @@ export function createOrientationController({
       if (Math.abs(wz) < state.gyroDeadzone) wz = 0;
       state.orient.pitch += wx * dt;
       state.orient.yaw += wz * dt;
+      
+      if (state.lastV === undefined) state.lastV = currentV;
+      const deltaV = currentV - state.lastV;
+      if (deltaV > 0.000001 && state.absOrientLast && state.lastV < state.fovThreshold) {
+        const euler = quaternionToEuler(state.absOrientLast);
+        const f = (v) => Math.max(0, 1.0 - Math.pow(v / state.fovThreshold, 2.5));
+        const fLast = f(state.lastV);
+        const fCurr = f(currentV);
+        
+        let progress = 0;
+        if (fLast > 0.0001) {
+            progress = 1.0 - (fCurr / fLast);
+        } else {
+            progress = 1.0;
+        }
+        progress = Math.max(0, Math.min(1, progress));
+        
+        state.orient.pitch += (euler.pitch - state.orient.pitch) * progress;
+        const targetYaw = unwrapAngle(euler.yaw, state.orient.yaw);
+        state.orient.yaw += (targetYaw - state.orient.yaw) * progress;
+      }
+      state.lastV = currentV;
+      
       emitDebug({ activeSource: "gyroscope" });
     }
 
@@ -282,7 +390,33 @@ export function createOrientationController({
       state.gyroSensor = new Gyroscope({ frequency: state.gyroFreq });
       state.absSensor = new RelativeOrientationSensor({ frequency: state.absFreq });
       state.absSensor.addEventListener("reading", onAbsReading);
-      startCalibration();
+      
+      let loadedBias = false;
+      try {
+        const savedBias = localStorage.getItem("astrovis_gyro_bias");
+        if (savedBias) {
+          const parsed = JSON.parse(savedBias);
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.z === 'number') {
+            state.gyroBias = parsed;
+            loadedBias = true;
+            console.log("Loaded saved gyro bias:", parsed);
+            
+            if (!state.sensorsStarted) {
+              state.gyroSensor.addEventListener("reading", onSensorReading);
+              state.gyroSensor.start();
+              state.absSensor.start();
+              state.sensorsStarted = true;
+              state.running = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load gyro bias from local storage", e);
+      }
+
+      if (!loadedBias) {
+        startCalibration();
+      }
     } catch (error) {
       onError(error);
       emitDebug({ activeSource: "sensor-error" });
@@ -293,30 +427,55 @@ export function createOrientationController({
     if (!state.gyroSensor || !state.absSensor) return;
 
     onCalibrationVisibility(true);
-    state.calibrating = true;
+    state.calibrating = false;
+    state.preCalibrating = true;
     state.running = false;
+    
+    state.preCalibStatus = "moving";
+    state.preCalibCountdown = 2;
+    state.preCalibLastTime = performance.now();
 
     state.gyroSensor.removeEventListener("reading", onSensorReading);
     state.gyroSensor.removeEventListener("reading", onCalibReading);
+    state.gyroSensor.removeEventListener("reading", onPreCalibReading);
+
+    emitDebug({ 
+        preCalibrating: true, 
+        preCalibStatus: state.preCalibStatus, 
+        preCalibCountdown: state.preCalibCountdown,
+        calibrating: false,
+        activeSource: "pre-calibration" 
+    });
+
+    state.gyroSensor.addEventListener("reading", onPreCalibReading);
+    if (!state.sensorsStarted) {
+      state.gyroSensor.start();
+      state.absSensor.start();
+      state.sensorsStarted = true;
+    }
+  }
+
+  function startActualCalibration() {
+    state.calibrating = true;
 
     state.biasSamples = [];
     state.calibSamplesNeeded = state.gyroFreq * state.calibDuration;
     state.currentMode = "absolute";
-    emitDebug({ calibrating: true, activeSource: "calibration" });
+    emitDebug({ calibrating: true, preCalibrating: false, activeSource: "calibration" });
 
     state.gyroSensor.addEventListener("reading", onCalibReading);
-    state.gyroSensor.start();
-    state.absSensor.start();
   }
 
   function cancelCalibration() {
     if (!state.calibrating) return;
 
     state.calibrating = false;
+    state.preCalibrating = false;
     state.running = true;
     onCalibrationVisibility(false);
 
     if (state.gyroSensor) {
+      state.gyroSensor.removeEventListener("reading", onPreCalibReading);
       state.gyroSensor.removeEventListener("reading", onCalibReading);
       state.gyroSensor.removeEventListener("reading", onSensorReading);
       state.gyroSensor.addEventListener("reading", onSensorReading);
