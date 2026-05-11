@@ -90,6 +90,9 @@
       activeSensorMode: "absolute",
       activeSource: "boot",
       calibrating: false,
+      preCalibrating: false,
+      preCalibStatus: "moving",
+      preCalibCountdown: 2,
       gyro: { x: 0, y: 0, z: 0 },
       absQuat: { x: 0, y: 0, z: 0, w: 0 },
       coords: { yaw: 0, pitch: 0, yawDeg: 0, pitchDeg: 0 },
@@ -140,7 +143,6 @@
     let engine;
 
     const CALIBRATE_ON_START = appConfig.calibrateOnStart;
-    const ZOOM_IDLE_TIMEOUT = appConfig.enableZoomBlurTimer ? 9999999 : 999999999; // very high if disabled, normal if enabled
 
     const MAX_FOV = 3.228859;
     const MIN_FOV = 0.000005;
@@ -184,9 +186,7 @@
       setDebug({ fovRad: fov, fovDeg: degFov, telescope: telescopeSnapshot() });
     }
 
-    function updateStellariumBlur({ blur }) {
-      if (canvasEl) canvasEl.style.filter = `blur(${blur}px)`;
-    }
+
 
     async function initEngine() {
       await initializeStellariumEngine({
@@ -206,7 +206,6 @@
         // currentFov = MAX_FOV;
         // logFov = Math.log(currentFov);
         // updateStellariumFov({ fov: currentFov });
-        updateStellariumBlur({ blur: NO_LENS_BLUR });
         telescope.setEyepieceFocalLength(0);
         setDebug({
           currentLensLevel,
@@ -215,7 +214,6 @@
           fovDeg: toDegrees(currentFov),
           telescope: telescopeSnapshot(),
         });
-        // resetZoomIdleTimer();
         return;
       }
 
@@ -225,7 +223,6 @@
         currentFov = HUMAN_EYE_FOV;
         logFov = Math.log(currentFov);
         updateStellariumFov({ fov: currentFov });
-        updateStellariumBlur({ blur: 0 });
         telescope.setEyepieceFocalLength(0);
         setDebug({
           currentLensLevel,
@@ -234,7 +231,6 @@
           fovDeg: toDegrees(currentFov),
           telescope: telescopeSnapshot(),
         });
-        resetZoomIdleTimer();
         return;
       }
 
@@ -245,7 +241,6 @@
       currentFov = fov;
       logFov = Math.log(fov);
       updateStellariumFov({ fov });
-      updateStellariumBlur({ blur: 0 });
       setDebug({
         currentLensLevel,
         targetLogFov: logFov,
@@ -253,14 +248,12 @@
         fovDeg: toDegrees(currentFov),
         telescope: telescopeSnapshot(),
       });
-      resetZoomIdleTimer();
     }
 
     let targetLogFov = logFov;
     const ZOOM_SMOOTHING = 0.12;
     let zoomAnimating = false;
     const ZOOM_MOTION_THRESHOLD = 0.015;
-    let zoomIdleTimer = null;
     let lastZoomMotion = null;
 
     function startZoomLoop() {
@@ -287,21 +280,7 @@
       requestAnimationFrame(step);
     }
 
-    function touchZoomActivity() {
-      if (zoomIdleTimer) {
-        clearTimeout(zoomIdleTimer);
-      }
 
-      zoomIdleTimer = setTimeout(() => {
-        applyLensLevel(0);
-        targetLogFov = logFov;
-        setDebug({ targetLogFov });
-      }, ZOOM_IDLE_TIMEOUT);
-    }
-
-    function resetZoomIdleTimer() {
-      touchZoomActivity();
-    }
 
     function registerZoomMotion(h, v) {
       if (!Number.isFinite(h) || !Number.isFinite(v)) return;
@@ -318,7 +297,6 @@
       if (motionDistance < ZOOM_MOTION_THRESHOLD) return;
 
       lastZoomMotion = { h, v };
-      touchZoomActivity();
     }
 
     function applyZoomDelta(delta) {
@@ -326,12 +304,6 @@
       targetLogFov = Math.min(Math.log(MAX_FOV), Math.max(Math.log(MIN_FOV), targetLogFov));
       setDebug({ targetLogFov });
       startZoomLoop();
-
-      if (zoomIdleTimer) {
-        clearTimeout(zoomIdleTimer);
-        zoomIdleTimer = null;
-      }
-      updateStellariumBlur({ blur: 0 });
     }
 
     function triggerRecalibration() {
@@ -424,9 +396,6 @@
       window.removeEventListener("keydown", handleKeyDown);
       orientation.stop();
       clearInterval(timeUpdateInterval);
-      if (zoomIdleTimer) {
-        clearTimeout(zoomIdleTimer);
-      }
       lastZoomMotion = null;
       onDebugRecalibrate = () => {};
       onDebugCancelCalibration = () => {};
@@ -452,8 +421,18 @@
   </button>
   <div class="crosshair" aria-hidden="true"></div>
   <div id="calibration-overlay" bind:this={overlayEl}>
-    <h2 class="pulse">CALIBRANDO SENSORES</h2>
-    <p>Mantenga el dispositivo estatico...</p>
+    {#if debugState.preCalibrating}
+      {#if debugState.preCalibStatus === "moving"}
+        <h2 class="pulse warning-text">MOVIMIENTO DETECTADO</h2>
+        <p>Mantenere fermo il telefono...</p>
+      {:else}
+        <h2 class="pulse">PREPARANDO</h2>
+        <p>La calibración empieza en {debugState.preCalibCountdown}...</p>
+      {/if}
+    {:else if debugState.calibrating}
+      <h2 class="pulse">CALIBRANDO SENSORES</h2>
+      <p>Mantenga el dispositivo estatico...</p>
+    {/if}
   </div>
   {#if isDebugPanelVisible}
     <DebugPanel
@@ -579,6 +558,11 @@
   #calibration-overlay p {
     color: white;
     margin-top: 10px;
+    font-size: 1.2rem;
+  }
+
+  .warning-text {
+    color: #ff3333 !important;
   }
 
   .pulse {
