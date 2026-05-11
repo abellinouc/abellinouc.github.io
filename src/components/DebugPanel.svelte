@@ -99,24 +99,6 @@
       </button>
     </div>
 
-    <div class="lens-grid">
-      {#each lensLevels as level}
-        <button type="button" on:click={() => onSelectLens(level)}>{level}</button>
-      {/each}
-    </div>
-
-    <h4>Tarjetas físicas</h4>
-    <p>Simula cuatro niveles de cambio físico de tarjeta.</p>
-    <div class="card-grid">
-      {#each simulatedCardLevels as level}
-        <button type="button" on:click={() => onSimulateCardChange(level)}>
-          Tarjeta {level}
-        </button>
-      {/each}
-    </div>
-    <button class="card-remove-btn" type="button" on:click={() => onSimulateCardChange(0)}>
-      Retirar tarjeta
-    </button>
   </section>
 </aside>
 
