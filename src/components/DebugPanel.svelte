@@ -7,7 +7,7 @@
   export let onToggleVertical = () => {};
   export let onCancelCalibration = () => {};
   export let onSimulateCardChange = () => {};
-  export let invertVertical = true;
+  export let invertVertical = false;
   export let onAddHour;
   export let onSubHour;
 

@@ -36,7 +36,7 @@
   }
 
   let isDebugPanelVisible = false; // será actualizado según config
-  let invertVerticalMotion = true;
+  let invertVerticalMotion = false;
   let appConfig = null;
   const telescope = new Telescope("Prototipo", "refractor", 200, 1200);
 
@@ -468,7 +468,6 @@
     height: 100%;
     overflow: hidden;
     background: #000;
-    transform: rotate(180deg);
   }
 
   main {
@@ -479,10 +478,10 @@
 
   #stel-canvas {
     width: 100%;
-    height: 50%;
+    height: 100%;
     display: block;
     position: absolute;
-    top:50%;
+    top: 0;
   }
 
   #debug-toggle {
@@ -505,7 +504,7 @@
 
   .crosshair {
     position: absolute;
-    top: 75%;
+    top: 50%;
     left: 50%;
     width: 40px;
     height: 40px;
@@ -580,29 +579,4 @@
       opacity: 1;
     }
   }
-
-    @media (min-width: 600px) {
-  :global(#app) {
-    transform: rotate(0deg);
-
-  }
-  #stel-canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-    position: absolute;
-    top:0%;
-  }
-
-  .crosshair {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 40px;
-    height: 40px;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 20;
-  }
-}
 </style>
