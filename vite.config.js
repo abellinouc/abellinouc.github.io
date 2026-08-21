@@ -20,6 +20,7 @@ export default defineConfig({
   },
   server: {
     host: true,
+    allowedHosts: [".trycloudflare.com"],
     watch: {
       ignored: ["**/data/bigdata/**", "**/data/smalldata/**"],
     },

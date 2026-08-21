@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_OPTIONS=--max-old-space-size=1536 vite",
-    "build": "vite build",
+    "build": "vite build && node build/gen-precache.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -1,10 +1,77 @@
 <script>
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import DebugPanel from "./components/DebugPanel.svelte";
+  import DownloadPanel from "./components/DownloadPanel.svelte";
   import Telescope, { computeFovFromEyepiece } from "./Telescope.js";
   import { initializeStellariumEngine } from "./services/stellariumEngine.js";
   import { createOrientationController } from "./services/orientationController.js";
   import { loadConfig } from "./config";
+
+  // The offline button, and why it is conditional.
+  //
+  // In a browser tab the storage is evictable: the browser may hand back 27 GB
+  // the moment the phone gets tight, and offering a download there is offering
+  // something we cannot keep. Installed, the origin can be made persistent and
+  // the promise is real - so the button exists only there.
+  //
+  // display-mode covers Android and desktop; navigator.standalone is the iOS
+  // spelling of the same question.
+  let isInstalled = false;
+  let isDownloadPanelOpen = false;
+  let panelEverOpened = false;
+
+  /**
+   * Keeping the screen on.
+   *
+   * Two reasons, and the second is the one that bites. A phone held up at the
+   * sky is not being touched, so it dims and locks in the middle of what it is
+   * being used for. And a download of tens of gigabytes takes long enough that
+   * the screen going off is not a nuisance, it is an interruption: with the app
+   * in the background the browser throttles its timers and its fetches, and the
+   * transfer stops in a way that looks like the app is broken.
+   *
+   * The lock is released by the browser whenever the page is hidden - that is
+   * the specification, not a bug - so it is taken again on every return to
+   * visible. Unsupported browsers simply carry on without it.
+   */
+  let wakeLock = null;
+  let screenAwake = false;
+
+  async function keepScreenOn() {
+    if (!("wakeLock" in navigator) || wakeLock) return;
+    if (document.visibilityState !== "visible") return;   // a hidden page cannot hold one
+    try {
+      const sentinel = await navigator.wakeLock.request("screen");
+      wakeLock = sentinel;
+      screenAwake = true;
+      sentinel.addEventListener("release", () => {
+        if (wakeLock === sentinel) wakeLock = null;
+        screenAwake = false;
+      });
+    } catch (e) {
+      wakeLock = null;
+      screenAwake = false;
+    }
+  }
+
+  async function letScreenSleep() {
+    const held = wakeLock;
+    wakeLock = null;
+    screenAwake = false;
+    if (held) {
+      try {
+        await held.release();
+      } catch (e) {}
+    }
+  }
+
+  function onVisibilityChange() {
+    if (document.visibilityState === "visible") keepScreenOn();
+  }
+
+  // Whether the lock is actually held is invisible from the outside - the screen
+  // simply does not dim - so it is readable for a check.
+  $: if (typeof window !== "undefined") window.__screenAwake = screenAwake;
 
   let canvasEl;
   let overlayEl;
@@ -130,7 +197,28 @@
     };
   }
 
+  onMount(() => {
+    keepScreenOn();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  });
+
+  onDestroy(() => {
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    letScreenSleep();
+  });
+
   onMount(async () => {
+    // Installed or in a tab? The offline button hangs off the answer.
+    try {
+      isInstalled =
+        (window.matchMedia &&
+          (window.matchMedia("(display-mode: standalone)").matches ||
+            window.matchMedia("(display-mode: fullscreen)").matches)) ||
+        window.navigator.standalone === true;
+    } catch (e) {
+      isInstalled = false;
+    }
+
     // Load environment-specific configuration
     appConfig = await loadConfig();
 
@@ -420,6 +508,40 @@
     {isDebugPanelVisible ? "Ocultar debug" : "Mostrar debug"}
   </button>
   <div class="crosshair" aria-hidden="true"></div>
+  {#if isInstalled}
+    <button
+      id="offline-toggle"
+      type="button"
+      title="Datos sin conexión"
+      aria-label="Datos sin conexión"
+      on:click={() => {
+        panelEverOpened = true;
+        isDownloadPanelOpen = true;
+      }}
+    >
+      <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+        <path
+          d="M12 3v10m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+  {/if}
+  <!-- Mounted for good once it has been opened. Closing it used to DESTROY it,
+       and with it the queue and everything it knew about what was running: the
+       transfers carried on invisibly, and reopening offered to start them
+       again. Hidden, not unmounted. -->
+  {#if panelEverOpened}
+    <DownloadPanel
+      visible={isDownloadPanelOpen}
+      onNeedScreen={keepScreenOn}
+      onClose={() => (isDownloadPanelOpen = false)}
+    />
+  {/if}
   <div id="calibration-overlay" bind:this={overlayEl}>
     {#if debugState.preCalibrating}
       {#if debugState.preCalibStatus === "moving"}
@@ -452,6 +574,30 @@
 </main>
 
 <style>
+  /* Bottom left, small, out of the way of the sky. It is a utility, not a
+     control: the app is a telescope and this is the cupboard behind it. */
+  #offline-toggle {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 40;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    border: 1px solid rgba(159, 178, 214, 0.35);
+    background: rgba(5, 7, 13, 0.55);
+    color: #9fb2d6;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 0;
+  }
+  #offline-toggle:active {
+    background: rgba(79, 195, 247, 0.18);
+    color: #4fc3f7;
+  }
+
 
 
   :global(*) {
