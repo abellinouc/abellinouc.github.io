@@ -1,0 +1,18 @@
+[Unit]
+Description=hips-bundle — streams a run of HiPS tiles as one tar
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+ExecStart=/usr/bin/python3 /opt/hips-bundle/hips_bundle.py
+Restart=always
+RestartSec=2
+# it only ever reads the surveys, and never writes anywhere
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+# Questi file vengono copiati su una macchina Linux così come sono.
+#
+# git su Windows ha core.autocrlf=true e al checkout converte i fine riga: un
+# CRLF nello shebang di hips_bundle.py è un file che non parte, e l'errore non
+# dice niente di utile. Qui restano LF, sempre.
+server/** text eol=lf
